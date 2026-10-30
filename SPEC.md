@@ -5,7 +5,7 @@
 - License: CC BY 4.0 (redistribution and commercial OK). Must ship this attribution in README and app footer:
   - "Data from the HF Data Library (Elkassabgi 2026), https://hfdatalibrary.com, CC BY 4.0."
   - "Data provided for free by IEX. By accessing or using IEX Historical Data, you agree to the IEX Historical Data Terms of Use."
-- Bundle per-day CSVs in the repo (390 bars/day each, tiny). No runtime API.
+- Bundle only the selected regular-session CSVs in the repo. A full session has 390 possible minute slots (09:30–15:59 America/New_York), but Clean data has missing minutes. Preserve observed bars and expose missing minute indices explicitly; never fabricate OHLCV or forward-fill. No runtime API.
 - Fallback with no account: IEX HIST raw feed (https://iextrading.com/api/1.0/hist?date=YYYYMMDD) gives a public TOPS pcap.gz per day, ~6.7 GB each. Build SPY 1-min bars from its trade messages with a one-time script, then delete the raw files. Same IEX attribution applies. Volume is IEX-only (same as HF).
 - Rejected: FRED S&P 500 (S&P prohibits reproduction without permission), Stooq (redistribution terms unclear), paid APIs (need keys).
 - Limitation: no licensed free minute data for 1987 / 2008 / 2010 flash crash. Leave them out.
@@ -16,7 +16,9 @@
 3. 2025-01-27: DeepSeek shock (also bundle NVDA)
 4. 2025-04-03 / 2025-04-04: tariff crash, two straight big down days
 5. 2025-04-09: tariff pause, huge intraday rally (the "euphoria" track)
-6. A calm control day picked from the data (lowest realized vol in 2023)
+6. 2023-12-26: calm control, lowest realized volatility among full-length 2023 sessions. Exclude the July 3 and November 24 half-days so the control has the same session length as the event days. November 24 is the absolute minimum but is a shortened session.
+
+Session verification and the volatility selection method are documented in `data/README.md`.
 
 ## Mapping (per 1-minute bar; one bar = one beat)
 - Pitch: close mapped onto a minor pentatonic scale over 3 octaves, using the day's min..max range (always sounds musical).
