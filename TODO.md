@@ -28,6 +28,7 @@
 - [ ] Ryan imports the site into hosting and verifies playback on the deployed URL.
 
 ### M8: Handoff
-- [ ] The README explains how it works and how to add a day, attribution is present, and bot tokens/jobs are removed.
+- [x] The README explains running, testing, static deployment, the mapping, adding a day, attribution, and limitations, with Ryan's remaining checks and cleanup listed (GRO-13).
+- [ ] Ryan completes the credential and bot cleanup in the README's handoff checklist.
 
 ## Later
