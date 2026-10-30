@@ -1,6 +1,6 @@
 # Market as Music — milestones (one PR each)
 
-- [x] M0: Repo scaffold: static site (no framework), test runner, GitHub Actions (test + Pages deploy), README with data attribution
+- [x] M0: Repo scaffold: static site (no framework), test runner, GitHub Actions (tests), README with data attribution
 - [ ] M1: Data: download SPY Clean 1-min CSVs for the days in SPEC.md (+ NVDA 2025-01-27), verify each day's moves match its story, bundle under data/, loader + tests
 - [ ] M2: Features: per-bar return, rolling 5-min volatility, 3σ events, VWAP; unit tests on a fixture day
 - [ ] M3: Sound engine: Web Audio synth, pentatonic pitch map, volume gain, volatility-driven filter/distortion, drone, event hits
