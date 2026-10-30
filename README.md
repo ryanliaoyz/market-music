@@ -14,6 +14,9 @@ cumulative VWAP. The Web Audio engine maps those features to notes, harmony,
 volume, timbre, a VWAP drone, and synthesized event hits. The day picker, play/pause,
 minute seek, and speed controls play any bundled session. A synchronized price line,
 volatility-colored background, and event flashes follow the audible cursor.
+The dark layout stacks controls on phones, with labeled native inputs, large touch
+targets, and visible keyboard focus. The session time sits beside the seek label;
+screen readers can read it from the slider without continuous time announcements.
 The collapsible debug panel shows the current bar's return, day σ, note, gain,
 distortion drive, and mapping rules alongside playback state and waiting reasons.
 
