@@ -107,6 +107,21 @@ test("full session ends at two minutes, stops all sound, and Play replays the op
   await playback.dispose();
 });
 
+test("changing speed after the end preserves the end cursor and replays the whole day", async () => {
+  const { playback, advance, active } = setup();
+  await playback.play();
+  advance(131);
+  playback.setSpeed(4);
+  assert.equal(playback.inspect().state, "ended");
+  assert.equal(playback.inspect().position, 390);
+  assert.equal(active(), false);
+  await playback.play();
+  assert.equal(playback.inspect().minute, 0);
+  assert.equal(playback.inspect().audio.lastScheduled.minute, 0);
+  assert.equal(playback.inspect().audio.lastScheduled.duration, 0.125);
+  await playback.dispose();
+});
+
 test("pause, seek, speed change, and disposal invalidate a pending audio resume", async () => {
   for (const action of [p => p.pause(), p => p.seek(5), p => p.setSpeed(2), p => p.dispose()]) {
     const { context, playback, active } = setup();

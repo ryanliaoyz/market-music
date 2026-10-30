@@ -118,8 +118,13 @@ export function createPlayback(features, {
       if (!SPEEDS.includes(value)) throw new RangeError("Invalid playback speed");
       if (state === "disposed") throw new Error("Playback is disposed");
       const playing = state === "playing";
+      const ended = state === "ended";
       stop("speed-change");
       speed = value;
+      if (ended) {
+        state = "ended";
+        minute = 390;
+      }
       if (playing) start();
       reason = "speed-change";
       notify();
