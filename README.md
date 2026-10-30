@@ -15,7 +15,7 @@ open `http://localhost:8000`.
 
 ## Deploy
 
-Every push to `main` runs the tests and deploys the site to GitHub Pages.
+Every pull request and push to `main` runs the tests. Hosting is connected separately (Vercel), which redeploys on every push to `main`.
 
 ## Data attribution
 
