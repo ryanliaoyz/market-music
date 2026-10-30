@@ -10,8 +10,9 @@ The static scaffold and eight bundled HF Clean sessions are ready. The data load
 validates OHLCV and exposes missing minutes without filling them. The pure feature
 calculator provides per-minute returns, rolling volatility, signed 3σ events, and
 cumulative VWAP. The Web Audio engine maps those features to notes, harmony,
-volume, timbre, a VWAP drone, and synthesized event hits. Playback controls and
-visualization are planned in `TODO.md`.
+volume, timbre, a VWAP drone, and synthesized event hits. The day picker, play/pause,
+minute seek, and speed controls play any bundled session. Visualization is planned
+in `TODO.md`.
 
 See [the data guide](data/README.md) for verified session moves, provenance,
 regeneration, and loader usage.
@@ -25,6 +26,23 @@ for formulas, missing-data handling, and the separate opening gap.
 
 Serve the folder with any static server, for example `python3 -m http.server`, and
 open `http://localhost:8000`.
+
+Choose a trading day and press Play to enable audio. The default 1.625× speed plays
+the full 09:30–16:00 New York session in two minutes; 1× is 120 BPM. Missing minutes
+are silent rests. Pause/resume, seek, and speed changes restart the current minute;
+changing days stops audio and loads the new day paused. Play after the end replays
+the day. The opening gong repeats only when replaying the opening bar.
+
+In the development console, `window.marketMusic.inspect()` exposes session loading
+and errors, playback state, audible minute/bar index (null during a missing minute),
+speed, next scheduling minute, last transition reason, audio-resume waiting, and
+the engine's last scheduled mapping. The scheduled bar may be ahead of the cursor.
+See [playback conventions](SPEC.md#playback-conventions) for timing details.
+
+For a manual playback check, try both SPY and NVDA, pause mid-day, seek while paused
+and playing, change speeds, and switch days during playback. Check that old audio
+stops immediately, Play resumes the displayed minute, and the end stays silent
+until replayed. Listen with speakers/headphones to check timbre and event hits.
 
 ## Test
 
