@@ -75,6 +75,50 @@ test("seek and speed cancel queued sounds and restart the current minute", async
   await playback.dispose();
 });
 
+test("clock advancing during scheduling skips expired beats and keeps playback running", async () => {
+  for (const action of [
+    async p => { p.pause(); await p.play(); },
+    p => p.seek(1),
+    p => p.setSpeed(4),
+    null,
+  ]) {
+    const { context, playback, advance, active } = setup();
+    if (action) await playback.play();
+    let time = context.currentTime;
+    Object.defineProperty(context, "currentTime", {
+      configurable: true,
+      get() {
+        const now = time;
+        time += 0.015;
+        return now;
+      },
+    });
+    if (action) await action(playback);
+    else await playback.play();
+    assert.equal(playback.inspect().state, "playing");
+    assert.equal(playback.inspect().audio.lastScheduled, null);
+    assert.equal(playback.inspect().audio.activeVoices, 0);
+    assert.equal(active(), true);
+    Object.defineProperty(context, "currentTime", { configurable: true, writable: true, value: 30 });
+    playback.seek(0);
+    assert.equal(playback.inspect().audio.lastScheduled.minute, 0);
+    const deadline = 30.03 + 0.5 / playback.inspect().speed;
+    let reads = 0;
+    Object.defineProperty(context, "currentTime", {
+      configurable: true,
+      get() { return ++reads <= 2 ? deadline - 0.005 : deadline + 0.005; },
+      set() {},
+    });
+    advance(deadline - 0.005);
+    assert.equal(playback.inspect().nextMinute, 2);
+    assert.equal(playback.inspect().audio.lastScheduled.minute, 0);
+    Object.defineProperty(context, "currentTime", { configurable: true, writable: true, value: deadline + 0.005 });
+    advance(deadline + 0.5 / playback.inspect().speed - 0.05);
+    assert.equal(playback.inspect().audio.lastScheduled.minute, 2);
+    await playback.dispose();
+  }
+});
+
 test("missing exchange minutes are silent rests and delayed timers skip overdue beats", async () => {
   const { playback, advance, context } = setup();
   const missing = features.missingMinutes[0];
