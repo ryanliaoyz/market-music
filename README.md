@@ -9,7 +9,8 @@ Eight bundled HF Clean sessions (seven SPY days and NVDA's DeepSeek day) play in
 the browser without a backend, runtime API, or credentials. A day picker,
 play/pause, minute seek, and speed controls drive Web Audio, a synchronized price
 line, volatility background, event flashes, and a collapsible debug panel.
-Missing minutes remain silent rests, never fabricated bars.
+Missing minutes remain silent rests, never fabricated bars. On phones the controls stack, with large touch targets and visible
+keyboard focus.
 
 | Market feature | Mapping |
 | --- | --- |
