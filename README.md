@@ -7,11 +7,17 @@ volatility adds distortion. See `SPEC.md` for the full mapping.
 ## Overview
 
 The static scaffold and eight bundled HF Clean sessions are ready. The data loader
-validates OHLCV and exposes missing minutes without filling them. Feature mapping,
-audio, playback, and visualization are planned in `TODO.md`.
+validates OHLCV and exposes missing minutes without filling them. The pure feature
+calculator provides per-minute returns, rolling volatility, signed 3σ events, and
+cumulative VWAP. Audio, playback, and visualization are planned in `TODO.md`.
 
 See [the data guide](data/README.md) for verified session moves, provenance,
 regeneration, and loader usage.
+
+For features, pass the loader result to `computeFeatures` from `src/features.js`.
+Inspect the returned `bars`, `sigma`, `eventThreshold`, and coverage counts in the
+browser development console. See [the feature conventions](SPEC.md#feature-calculation-conventions)
+for formulas, missing-data handling, and the separate opening gap.
 
 ## Run it
 
