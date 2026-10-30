@@ -95,7 +95,9 @@ beats for missing minutes. All mappings use the full historical day, like σ.
 `createSoundEngine(features, { context } = {})` owns a new AudioContext unless one
 is supplied. Call `await engine.resume()` from a user gesture. `playBar(index,
 { when, duration })` schedules on the audio clock and returns the chosen mapping;
-time defaults to now, duration to 0.5 seconds (120 BPM). Call in chronological order
+time defaults to now, duration to 0.5 seconds (120 BPM). Playback passes
+`skipIfLate: true` so a beat that expires before the engine reads the clock returns
+`null` without allocating sounds; other callers reject past times. Call in chronological order
 with non-overlapping beats. Timing, speed, missing-minute rests, and seek policy
 belong to playback (M4); this engine creates no timers. The ≈2-minute day default
 uses faster-than-base playback there.

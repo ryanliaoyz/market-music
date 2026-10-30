@@ -61,7 +61,7 @@ export function createPlayback(features, {
       if (when > now + 0.1) break;
       const index = indices.get(nextMinute);
       if (when >= now && index !== undefined) {
-        engine.playBar(index, { when, duration: duration() });
+        engine.playBar(index, { when, duration: duration(), skipIfLate: true });
       }
       nextMinute++;
     }
