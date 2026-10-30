@@ -60,7 +60,7 @@ missing-minute metadata. It does not mutate the input or retain state.
 
 All returns and volatility values are fractions (0.01 means 1%). These values,
 coverage counts, and event labels are available directly to development-console
-inspection and the future debug panel; no audio or playback state is needed.
+inspection; no audio or playback state is needed.
 
 ## Sound engine conventions
 
@@ -133,7 +133,7 @@ in the status line and development diagnostics.
 - `inspect()` exposes state, fractional position, minute, observed bar index (null
   for rests), speed, next scheduling minute, waiting reason, last transition, and
   engine diagnostics. `window.marketMusic.inspect()` adds page loading/error state.
-  This console surface supports development until the M6 debug panel is added.
+  The debug panel also displays the current cursor mapping and playback reasons.
 
 ## Visual conventions
 
@@ -159,3 +159,26 @@ It never uses the sound engine's lookahead mapping as the visible current bar.
   `window.marketMusic.inspect().visuals` exposes the last rendered position,
   minute, close (null for rests), intensity, event, flash strength, and playback
   waiting/transition reason. This is render state, not future scheduled audio.
+
+## Debug panel conventions
+
+`createDebugPanel(features, root)` in `src/debug.js` maps the selected session once
+with `createSoundScore` and renders the same audio-clock snapshots as the chart.
+The collapsible panel owns no timer, audio context, or firing history.
+
+- Current bar means the cursor's exchange minute and zero-based observed bar index,
+  not the engine's last scheduled bar. Paused/starting states label values as mapping
+  previews. All matching rule IDs are shown, including harmony and opening gong;
+  they describe the bar's mapping, not proof that a sound played (late timers may
+  skip beats). An empty rule list is shown as `none`.
+- Return and day population σ are displayed as percentages to four decimal places;
+  unavailable values are `n/a`. σ stays visible during rests. The note has its name,
+  octave, and MIDI number. Lead gain is linear and drive ranges from 0 to 24, both
+  displayed to four decimal places; zero remains distinct from unavailable.
+- Missing minutes show a rest and clear note/return/gain/drive/rules. End/disposal
+  shows no current bar. Waiting reason and last transition stay inspectable.
+- The panel is hidden during session loading or load failure, then rebuilt for the
+  selected day. Native details/summary provides keyboard toggling; values are not
+  an announcing live region. Unchanged text is not rewritten on clock ticks.
+  `window.marketMusic.inspect().debug` exposes the last rendered values without
+  display rounding, plus session, state, minute, bar index, and playback reasons.
