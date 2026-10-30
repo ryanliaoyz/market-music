@@ -134,3 +134,28 @@ in the status line and development diagnostics.
   for rests), speed, next scheduling minute, waiting reason, last transition, and
   engine diagnostics. `window.marketMusic.inspect()` adds page loading/error state.
   This console surface supports development until the M6 debug panel is added.
+
+## Visual conventions
+
+`createVisuals(features, svg)` in `src/visuals.js` renders playback snapshots from
+the existing 25 ms audio-clock notifications; it owns no timer or event queue.
+It never uses the sound engine's lookahead mapping as the visible current bar.
+
+- The SVG shows close price over all 390 minute slots, scaled to the day's minimum
+  and maximum close (flat days sit at mid-height). The line is progressively
+  revealed at the fractional playback cursor. Missing minutes break the path and
+  hide the current-price point; no price is invented. Seeking rewinds/reveals the
+  line immediately; the end reveals the full line with the cursor at 16:00.
+- Background intensity uses the same rolling-volatility/day-peak normalization
+  as sound: cool blue at zero/unavailable volatility, warm orange at the peak.
+  A missing current bar has zero intensity, not a carried-forward value.
+- Drop/spike events flash pink/green; a nonzero opening gap flashes gold on minute
+  zero. Opacity fades from 35% to zero during the first half of the current beat,
+  so it follows speed and cannot accumulate stale event timers. Startup lead time,
+  paused/starting/ended states, and seeks before audio starts show no flash.
+  Reduced-motion preferences hide the flash layer. No CSS transitions delay the
+  cursor or background. Paused seeking previews the target bar's background.
+- Day loading hides the old chart; a new session rebuilds its scale and path.
+  `window.marketMusic.inspect().visuals` exposes the last rendered position,
+  minute, close (null for rests), intensity, event, flash strength, and playback
+  waiting/transition reason. This is render state, not future scheduled audio.
