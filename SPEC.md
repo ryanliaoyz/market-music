@@ -182,3 +182,18 @@ The collapsible panel owns no timer, audio context, or firing history.
   an announcing live region. Unchanged text is not rewritten on clock ticks.
   `window.marketMusic.inspect().debug` exposes the last rendered values without
   display rounding, plus session, state, minute, bar index, and playback reasons.
+
+## Browser verification
+
+M7 uses Playwright with headless Chromium against a local static server and the
+bundled sessions. `npm test` includes unit and browser checks; CI installs Chromium
+and runs the same command. Browser tests use normal controls, real Web Audio, and
+the existing development inspection surface, without replacing the audio clock.
+They cover paused previews, keyboard seek/panel toggling, play/pause/resume,
+playing seek and speed changes, missing-minute rests, end/replay, session switching,
+and fetch failure recovery. Assertions wait for observable state rather than
+requiring exact wall-clock beat timing. Failure traces and screenshots are retained.
+
+Chromium is the initial automated browser target. Audible quality and deployed
+playback require the manual check in the README. Hosting import and the deployed
+URL check belong to Ryan; M7's browser checks do not require an account or token.
