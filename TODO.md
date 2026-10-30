@@ -1,11 +1,32 @@
 # Market as Music — milestones (one PR each)
 
-- [x] M0: Repo scaffold: static site (no framework), test runner, GitHub Actions (tests), README with data attribution
-- [ ] M1: Data: download SPY Clean 1-min CSVs for the days in SPEC.md (+ NVDA 2025-01-27), verify each day's moves match its story, bundle under data/, loader + tests
-- [ ] M2: Features: per-bar return, rolling 5-min volatility, 3σ events, VWAP; unit tests on a fixture day
-- [ ] M3: Sound engine: Web Audio synth, pentatonic pitch map, volume gain, volatility-driven filter/distortion, drone, event hits
-- [ ] M4: Playback: play/pause/seek, speed control, day picker
-- [ ] M5: Visuals: synced price line, volatility background, event flashes
-- [ ] M6: Debug panel: live bar, return, σ, note, gain, drive, rule fired
-- [ ] M7: Browser tests for playback + debug panel; Pages deploy check
-- [ ] M8: Handoff: README (how it works, add a day, attribution), remove bot tokens/jobs
+## Version 1
+
+### M0: Repo scaffold
+- [x] The static site, test runner, GitHub Actions tests, and data attribution are available.
+
+### M1: Data
+- [x] The selected SPY Clean 1-minute sessions and NVDA 2025-01-27 load from bundled data, preserve missing minutes, match their stories, and pass loader tests with `npm test`.
+
+### M2: Features
+- [ ] Per-bar return, rolling 5-minute volatility, 3σ events, and VWAP match a fixture day in unit tests.
+
+### M3: Sound engine
+- [ ] Web Audio plays pentatonic pitches, volume gain, volatility-driven filter/distortion, drone, and event hits.
+
+### M4: Playback
+- [ ] A day picker, play/pause/seek, and speed control operate on a selected session.
+
+### M5: Visuals
+- [ ] A price line, volatility background, and event flashes stay synchronized with playback.
+
+### M6: Debug panel
+- [ ] The live bar, return, σ, note, gain, drive, and fired rule are inspectable.
+
+### M7: Browser tests and deploy
+- [ ] Browser tests verify playback and the debug panel, and the hosting deployment is checked.
+
+### M8: Handoff
+- [ ] The README explains how it works and how to add a day, attribution is present, and bot tokens/jobs are removed.
+
+## Later
