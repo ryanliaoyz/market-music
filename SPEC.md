@@ -61,3 +61,49 @@ missing-minute metadata. It does not mutate the input or retain state.
 All returns and volatility values are fractions (0.01 means 1%). These values,
 coverage counts, and event labels are available directly to development-console
 inspection and the future debug panel; no audio or playback state is needed.
+
+## Sound engine conventions
+
+`createSoundScore(features)` in `src/sound.js` is a pure mapping of the enriched
+feature result. It preserves observed bar indices and exchange minutes, adding no
+beats for missing minutes. All mappings use the full historical day, like σ.
+
+- Close is quantized to the nearest of 16 C-minor-pentatonic notes, C3 through C6
+  inclusive (MIDI 48–84), using the day's minimum and maximum **close**. A flat day
+  uses the range midpoint. VWAP uses the same price range, clamped to it, over
+  C2–C3 for the bass drone; null VWAP is silent.
+- Lead gain is `0.22 * clamp(log2(1 + volume / reference) / 2, 0, 1)`, so median
+  volume has gain 0.11, zero volume is silent, and three times median reaches the
+  ceiling. The reference is the day's median volume; if zero, use the median of
+  positive volumes, or 1 for an all-zero day. The median and chosen reference are
+  inspectable in the score. Event hits and the drone have independent levels.
+- Volatility intensity is rolling volatility divided by the day's peak, or zero
+  for unavailable/zero volatility. It crossfades triangle to sawtooth, raises the
+  low-pass cutoff from 400 to 8000 Hz, and sets waveshaper drive from 0 to 24.
+  Zero drive is an identity curve; positive drive uses normalized tanh saturation.
+- A positive one-minute return adds a major third (+4 semitones); a negative one
+  adds a tritone below (−6), at 35% of lead gain. Zero/null returns add no harmony.
+- Feature events alone fire deterministic synthesized hits: high-passed noise for
+  a drop, two sine partials for a spike bell. A nonzero, available opening gap
+  fires a three-partial gong only when scheduling bar index 0. Replaying that bar
+  intentionally replays the gong; a zero/unknown gap does not fire it.
+- Each lead/harmony voice has a short attack and exponential release over 90% of
+  the beat. One sine drone persists between calls, with pitch and gain scheduled
+  for each beat; its gain is zero after the last scheduled beat. A master gain of
+  0.6 feeds a dynamics compressor before the destination.
+
+`createSoundEngine(features, { context } = {})` owns a new AudioContext unless one
+is supplied. Call `await engine.resume()` from a user gesture. `playBar(index,
+{ when, duration })` schedules on the audio clock and returns the chosen mapping;
+time defaults to now, duration to 0.5 seconds (120 BPM). Call in chronological order
+with non-overlapping beats. Timing, speed, missing-minute rests, and seek policy
+belong to playback (M4); this engine creates no timers. The ≈2-minute day default
+will require faster-than-base playback there.
+
+`stop()` immediately disconnects/cancels all voices, drone, and future scheduled
+sounds; the engine can then be reused. `await dispose()` also disconnects the
+output and closes only an owned context. Natural voice endings release their
+nodes. `inspect()` exposes context time/state, pending resume, allocated voice and
+drone state, disposal, and the last scheduled bar's return, σ, MIDI note, gain,
+drive, timing, and fired rules. `score` exposes all mappings and normalization
+references. Neither diagnostic represents the current audible playback cursor.
