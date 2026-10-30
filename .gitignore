@@ -1,2 +1,4 @@
 node_modules/
 AGENTS.md
+test-results/
+playwright-report/

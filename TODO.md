@@ -24,7 +24,8 @@
 - [x] The live bar, return, σ, note, gain, drive, and fired rule are inspectable.
 
 ### M7: Browser tests and deploy
-- [ ] Browser tests verify playback and the debug panel, and the hosting deployment is checked.
+- [x] Browser tests verify playback and the debug panel with `npm test`, including in CI.
+- [ ] Ryan imports the site into hosting and verifies playback on the deployed URL.
 
 ### M8: Handoff
 - [ ] The README explains how it works and how to add a day, attribution is present, and bot tokens/jobs are removed.

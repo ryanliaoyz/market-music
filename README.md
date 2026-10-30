@@ -69,7 +69,21 @@ and old session values disappear during loading.
 
 ## Test
 
-`npm test` runs the unit tests with Node's built-in test runner (Node 22+).
+With Node 22+ and Python 3 installed, set up the test dependencies once:
+
+```sh
+npm ci
+npx playwright install --with-deps chromium
+```
+
+`npm test` runs the Node unit tests followed by the Playwright browser tests in
+headless Chromium with real Web Audio and bundled data. The browser runner starts
+and stops a local Python static server on port 4173; keep that port free.
+Use `npm run test:unit` or `npm run test:browser` to run either suite alone.
+Browser failures save screenshots and traces in `test-results/`; CI uploads that
+folder as an artifact. Open a downloaded trace with `npx playwright show-trace`
+and choose its `trace.zip` file. Browser checks observe audio state and the cursor;
+use the manual playback check above to assess audible quality.
 
 ## Audition the sound engine
 
@@ -110,7 +124,11 @@ transition, event sounds, and silence immediately after stopping.
 
 ## Deploy
 
-Every pull request and push to `main` runs the tests. Hosting is connected separately (Vercel), which redeploys on every push to `main`.
+Every pull request and push to `main` runs both test suites. Ryan handles the Vercel
+hosting import separately: serve this repository as a static site with no build
+command and the repository root as the output directory. After import, check the
+deployed URL using the manual playback check above, including both SPY and NVDA
+and the debug panel. Hosting import and deployed playback verification are pending.
 
 ## Data attribution
 
