@@ -11,8 +11,8 @@ validates OHLCV and exposes missing minutes without filling them. The pure featu
 calculator provides per-minute returns, rolling volatility, signed 3σ events, and
 cumulative VWAP. The Web Audio engine maps those features to notes, harmony,
 volume, timbre, a VWAP drone, and synthesized event hits. The day picker, play/pause,
-minute seek, and speed controls play any bundled session. Visualization is planned
-in `TODO.md`.
+minute seek, and speed controls play any bundled session. A synchronized price line,
+volatility-colored background, and event flashes follow the audible cursor.
 
 See [the data guide](data/README.md) for verified session moves, provenance,
 regeneration, and loader usage.
@@ -33,16 +33,27 @@ are silent rests. Pause/resume, seek, and speed changes restart the current minu
 changing days stops audio and loads the new day paused. Play after the end replays
 the day. The opening gong repeats only when replaying the opening bar.
 
+The chart reveals close prices across the full session, leaving breaks at missing
+minutes. Its background runs from cool blue (calm) to warm orange (the day's peak
+rolling volatility). Drops flash pink, spikes green, and the opening gong gold.
+Flashes stop on pause and are hidden when your system requests reduced motion.
+
 In the development console, `window.marketMusic.inspect()` exposes session loading
 and errors, playback state, audible minute/bar index (null during a missing minute),
 speed, next scheduling minute, last transition reason, audio-resume waiting, and
-the engine's last scheduled mapping. The scheduled bar may be ahead of the cursor.
+the engine's last scheduled mapping. Its `visuals` entry exposes the last rendered
+position, close, volatility intensity, event, flash strength, and transition/waiting
+reason. The scheduled bar may be ahead of the cursor.
 See [playback conventions](SPEC.md#playback-conventions) for timing details.
 
 For a manual playback check, try both SPY and NVDA, pause mid-day, seek while paused
 and playing, change speeds, and switch days during playback. Check that old audio
 stops immediately, Play resumes the displayed minute, and the end stays silent
 until replayed. Listen with speakers/headphones to check timbre and event hits.
+Watch the chart through these controls: the price marker should disappear in
+missing minutes, seeking backward should hide later prices, and switching days
+should clear the old chart. Check flashes against event sounds at 0.5× speed,
+then enable your system's reduced-motion setting and check that flashes disappear.
 
 ## Test
 

@@ -8,3 +8,10 @@ input[type="range"] { width: 100%; }
 button { min-width: 5rem; }
 a { color: #9dc4ff; }
 footer { margin-top: 3rem; font-size: 0.85rem; }
+figure { margin: 1.5rem 0; }
+svg { display: block; width: 100%; height: auto; }
+.chart-labels { fill: #bbc4d4; font-size: 12px; }
+figcaption { color: #bbc4d4; font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) {
+  .event-flash { visibility: hidden; }
+}
