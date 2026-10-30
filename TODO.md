@@ -15,7 +15,7 @@
 - [x] Web Audio plays pentatonic pitches, volume gain, volatility-driven filter/distortion, drone, and event hits.
 
 ### M4: Playback
-- [ ] A day picker, play/pause/seek, and speed control operate on a selected session.
+- [x] A day picker, play/pause/seek, and speed control operate on a selected session.
 
 ### M5: Visuals
 - [ ] A price line, volatility background, and event flashes stay synchronized with playback.
