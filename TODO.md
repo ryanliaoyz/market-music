@@ -9,7 +9,7 @@
 - [x] The selected SPY Clean 1-minute sessions and NVDA 2025-01-27 load from bundled data, preserve missing minutes, match their stories, and pass loader tests with `npm test`.
 
 ### M2: Features
-- [ ] Per-bar return, rolling 5-minute volatility, 3σ events, and VWAP match a fixture day in unit tests.
+- [x] Per-bar return, rolling 5-minute volatility, 3σ events, and VWAP match a fixture day in unit tests.
 
 ### M3: Sound engine
 - [ ] Web Audio plays pentatonic pitches, volume gain, volatility-driven filter/distortion, drone, and event hits.
