@@ -18,7 +18,7 @@
 - [x] A day picker, play/pause/seek, and speed control operate on a selected session.
 
 ### M5: Visuals
-- [ ] A price line, volatility background, and event flashes stay synchronized with playback.
+- [x] A price line, volatility background, and event flashes stay synchronized with playback.
 
 ### M6: Debug panel
 - [ ] The live bar, return, σ, note, gain, drive, and fired rule are inspectable.
