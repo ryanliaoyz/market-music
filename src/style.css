@@ -12,6 +12,10 @@ figure { margin: 1.5rem 0; }
 svg { display: block; width: 100%; height: auto; }
 .chart-labels { fill: #bbc4d4; font-size: 12px; }
 figcaption { color: #bbc4d4; font-size: 0.85rem; }
+#debug { border: 1px solid #69758a; padding: 1rem; margin-block: 1.5rem; }
+#debug summary { cursor: pointer; }
+#debug p, #debug dt { color: #bbc4d4; }
+#debug dd { margin: 0.25rem 0 1rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {
   .event-flash { visibility: hidden; }
 }

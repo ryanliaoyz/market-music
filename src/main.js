@@ -2,6 +2,7 @@ import { loadCatalog, loadSession } from "./data.js";
 import { computeFeatures } from "./features.js";
 import { createPlayback } from "./playback.js";
 import { createVisuals } from "./visuals.js";
+import { createDebugPanel } from "./debug.js";
 
 const day = document.getElementById("day");
 const controls = document.getElementById("controls");
@@ -11,6 +12,8 @@ const seek = document.getElementById("seek");
 const time = document.getElementById("time");
 const status = document.getElementById("status");
 const chart = document.getElementById("chart");
+const debugPanel = document.getElementById("debug");
+let debug = null;
 let visuals = null;
 let playback = null;
 let selection = 0;
@@ -24,6 +27,7 @@ function showError(cause) {
 
 function render(snapshot) {
   visuals?.render(snapshot);
+  debug?.render(snapshot);
   play.textContent = ["playing", "starting"].includes(snapshot.state) ? "Pause" : "Play";
   seek.value = snapshot.minute;
   speed.value = snapshot.speed;
@@ -35,7 +39,7 @@ function render(snapshot) {
 
 window.marketMusic = {
   inspect: () => ({ selectedSession: day.value, loading, error, playback: playback?.inspect() ?? null,
-    visuals: visuals?.inspect() ?? null }),
+    visuals: visuals?.inspect() ?? null, debug: debug?.inspect() ?? null }),
 };
 
 async function selectDay(sessions) {
@@ -47,15 +51,19 @@ async function selectDay(sessions) {
   const previous = playback;
   playback = null;
   visuals = null;
+  debug = null;
   chart.hidden = true;
+  debugPanel.hidden = true;
   try {
     await previous?.dispose();
     const features = computeFeatures(await loadSession(sessions.find(session => session.id === day.value)));
     if (request !== selection) return;
     visuals = createVisuals(features, chart);
+    debug = createDebugPanel(features, debugPanel);
     playback = createPlayback(features, { onChange: render });
     render(playback.inspect());
     chart.hidden = false;
+    debugPanel.hidden = false;
     controls.disabled = false;
     status.textContent = `${features.session.title} · ${features.bars.length} observed minutes`;
   } catch (cause) {
