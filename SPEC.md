@@ -30,3 +30,34 @@ Session verification and the volatility selection method are documented in `data
 - Bass drone: VWAP (volume-weighted average price) as a low sustained note, so you can hear price pulling away from it.
 - Visuals: price line drawn in sync, background color by volatility, flash on events.
 - Debug panel: current bar, return, σ, chosen note, volume gain, distortion amount, and which rule fired.
+
+## Feature calculation conventions
+
+`computeFeatures(loadedSession)` in `src/features.js` accepts the validated loader
+result and returns a new result with enriched `bars`, preserving the session and
+missing-minute metadata. It does not mutate the input or retain state.
+
+- `return`: simple fractional close-to-close return (`close / previousClose - 1`)
+  only for adjacent exchange minutes. The first bar and bars after a gap have
+  `null` returns; multi-minute moves are not treated as one-minute events.
+- `sigma`: population standard deviation of all available one-minute returns for
+  the selected day, excluding nulls (not annualized). `returnCount` exposes the
+  sample count. A day with no returns has null σ; a flat day has zero σ.
+- `eventThreshold`: `3 * sigma`. Each bar's `event` is `"drop"` or `"spike"` only
+  when its absolute return strictly exceeds this threshold, otherwise `null`.
+  The threshold uses the whole day, intentionally including future bars for this
+  historical playback. It is not a deviation-from-mean test.
+- `rollingVolatility`: square root of the sum of squared available returns whose
+  ending minute lies in `[currentMinute - 4, currentMinute]`. No annualization,
+  demeaning, or warm-up scaling; partial windows use what is available.
+  `rollingReturnCount` exposes coverage; an empty window gives `null`, not zero.
+- `vwap`: cumulative `sum(((high + low + close) / 3) * volume) / sum(volume)`.
+  This is a bar-based approximation, not trade-level VWAP. Zero-volume bars leave
+  it unchanged; it is `null` until the first positive-volume bar.
+- `openingGapReturn`: first open divided by the catalog's previous close minus
+  one, separately available for the opening gong. It is `null` if the opening
+  minute is absent; a zero gap is zero. It never contributes to σ or volatility.
+
+All returns and volatility values are fractions (0.01 means 1%). These values,
+coverage counts, and event labels are available directly to development-console
+inspection and the future debug panel; no audio or playback state is needed.
