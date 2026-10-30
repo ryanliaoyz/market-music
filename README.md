@@ -13,6 +13,8 @@ cumulative VWAP. The Web Audio engine maps those features to notes, harmony,
 volume, timbre, a VWAP drone, and synthesized event hits. The day picker, play/pause,
 minute seek, and speed controls play any bundled session. A synchronized price line,
 volatility-colored background, and event flashes follow the audible cursor.
+The collapsible debug panel shows the current bar's return, day σ, note, gain,
+distortion drive, and mapping rules alongside playback state and waiting reasons.
 
 See [the data guide](data/README.md) for verified session moves, provenance,
 regeneration, and loader usage.
@@ -38,12 +40,19 @@ minutes. Its background runs from cool blue (calm) to warm orange (the day's pea
 rolling volatility). Drops flash pink, spikes green, and the opening gong gold.
 Flashes stop on pause and are hidden when your system requests reduced motion.
 
+Expand **Debug panel** to inspect the cursor's mapping, including paused seek
+previews. Returns and day σ are percentages; notes include MIDI numbers, gain is
+linear, and drive runs from 0 to 24. Missing minutes show a rest with unavailable
+bar values; day σ remains visible. Rules describe the current bar's mappings, not
+a history of sounds fired. The panel updates without an announcing live region.
+
 In the development console, `window.marketMusic.inspect()` exposes session loading
 and errors, playback state, audible minute/bar index (null during a missing minute),
 speed, next scheduling minute, last transition reason, audio-resume waiting, and
 the engine's last scheduled mapping. Its `visuals` entry exposes the last rendered
 position, close, volatility intensity, event, flash strength, and transition/waiting
-reason. The scheduled bar may be ahead of the cursor.
+reason. Its `debug` entry exposes the panel's unrounded values. The scheduled bar
+may be ahead of the cursor; the panel uses the cursor instead.
 See [playback conventions](SPEC.md#playback-conventions) for timing details.
 
 For a manual playback check, try both SPY and NVDA, pause mid-day, seek while paused
@@ -54,6 +63,9 @@ Watch the chart through these controls: the price marker should disappear in
 missing minutes, seeking backward should hide later prices, and switching days
 should clear the old chart. Check flashes against event sounds at 0.5× speed,
 then enable your system's reduced-motion setting and check that flashes disappear.
+With the debug panel open, seek while paused, check a missing minute, replay the
+opening gong, and switch days. Check that previews are labeled, rest values clear,
+and old session values disappear during loading.
 
 ## Test
 
