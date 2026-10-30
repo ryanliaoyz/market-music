@@ -1,11 +1,12 @@
 # Market as Music — data + mapping spec (Research)
 
 ## Data source
-- **HF Data Library** (https://hfdatalibrary.com): free 1-minute OHLCV bars for 1,253 US stocks/ETFs incl. SPY, QQQ, from 2022-03-07 to present. CSV/Parquet browser download, no account.
+- **HF Data Library** (https://hfdatalibrary.com): free 1-minute OHLCV bars for 1,253 US stocks/ETFs incl. SPY, QQQ, from 2022-03-07 to present. CSV/Parquet download. UPDATE 2026-10-29: downloads now require a free account (Google/ORCID sign-in) and API key.
 - License: CC BY 4.0 (redistribution and commercial OK). Must ship this attribution in README and app footer:
   - "Data from the HF Data Library (Elkassabgi 2026), https://hfdatalibrary.com, CC BY 4.0."
   - "Data provided for free by IEX. By accessing or using IEX Historical Data, you agree to the IEX Historical Data Terms of Use."
 - Bundle per-day CSVs in the repo (390 bars/day each, tiny). No runtime API.
+- Fallback with no account: IEX HIST raw feed (https://iextrading.com/api/1.0/hist?date=YYYYMMDD) gives a public TOPS pcap.gz per day, ~6.7 GB each. Build SPY 1-min bars from its trade messages with a one-time script, then delete the raw files. Same IEX attribution applies. Volume is IEX-only (same as HF).
 - Rejected: FRED S&P 500 (S&P prohibits reproduction without permission), Stooq (redistribution terms unclear), paid APIs (need keys).
 - Limitation: no licensed free minute data for 1987 / 2008 / 2010 flash crash. Leave them out.
 
