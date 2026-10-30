@@ -49,6 +49,23 @@
       </svg>
       <figcaption>Close price · New York time · USD</figcaption>
     </figure>
+    <details id="debug" hidden>
+      <summary>Debug panel</summary>
+      <p>Current cursor mapping, not the audio scheduler's lookahead. Paused values
+        preview the selected minute; rules list the bar's mappings, not a firing history.</p>
+      <dl>
+        <dt>Playback state</dt><dd data-debug="state"></dd>
+        <dt>Current bar · New York time</dt><dd data-debug="bar"></dd>
+        <dt>1-minute return</dt><dd data-debug="return"></dd>
+        <dt>Day σ · population standard deviation</dt><dd data-debug="sigma"></dd>
+        <dt>Chosen note</dt><dd data-debug="note"></dd>
+        <dt>Lead volume gain · linear</dt><dd data-debug="gain"></dd>
+        <dt>Distortion drive · 0–24</dt><dd data-debug="drive"></dd>
+        <dt>Rules · current mapping</dt><dd data-debug="rules"></dd>
+        <dt>Waiting for</dt><dd data-debug="waiting"></dd>
+        <dt>Last transition</dt><dd data-debug="reason"></dd>
+      </dl>
+    </details>
   </main>
   <footer>
     <p>Data from the HF Data Library (Elkassabgi 2026), <a href="https://hfdatalibrary.com">https://hfdatalibrary.com</a>, CC BY 4.0.</p>

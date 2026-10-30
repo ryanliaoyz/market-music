@@ -21,7 +21,7 @@
 - [x] A price line, volatility background, and event flashes stay synchronized with playback.
 
 ### M6: Debug panel
-- [ ] The live bar, return, σ, note, gain, drive, and fired rule are inspectable.
+- [x] The live bar, return, σ, note, gain, drive, and fired rule are inspectable.
 
 ### M7: Browser tests and deploy
 - [ ] Browser tests verify playback and the debug panel, and the hosting deployment is checked.
