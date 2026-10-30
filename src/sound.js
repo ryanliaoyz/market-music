@@ -157,13 +157,18 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
         waiting = null;
       }
     },
-    playBar(index, { when, duration = 0.5 } = {}) {
+    playBar(index, { when, duration = 0.5, skipIfLate = false } = {}) {
       assertOpen();
       const now = context.currentTime;
       when ??= now;
       if (!Number.isInteger(index) || index < 0 || index >= score.bars.length) throw new RangeError("Invalid bar index");
-      if (!Number.isFinite(when) || when < now) throw new RangeError("Schedule time must be now or later");
+      if (!Number.isFinite(when)) throw new RangeError("Schedule time must be now or later");
       if (!Number.isFinite(duration) || duration <= 0) throw new RangeError("Beat duration must be positive");
+      // The audio clock can pass the scheduler's deadline between clock reads.
+      if (when < now) {
+        if (skipIfLate) return null;
+        throw new RangeError("Schedule time must be now or later");
+      }
       const mapping = score.bars[index];
       for (const [type, mix] of [["triangle", 1 - mapping.intensity], ["sawtooth", mapping.intensity]]) {
         if (mix === 0 || mapping.gain === 0) continue;
