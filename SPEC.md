@@ -98,7 +98,7 @@ is supplied. Call `await engine.resume()` from a user gesture. `playBar(index,
 time defaults to now, duration to 0.5 seconds (120 BPM). Call in chronological order
 with non-overlapping beats. Timing, speed, missing-minute rests, and seek policy
 belong to playback (M4); this engine creates no timers. The ≈2-minute day default
-will require faster-than-base playback there.
+uses faster-than-base playback there.
 
 `stop()` immediately disconnects/cancels all voices, drone, and future scheduled
 sounds; the engine can then be reused. `await dispose()` also disconnects the
@@ -107,3 +107,30 @@ nodes. `inspect()` exposes context time/state, pending resume, allocated voice a
 drone state, disposal, and the last scheduled bar's return, σ, MIDI note, gain,
 drive, timing, and fired rules. `score` exposes all mappings and normalization
 references. Neither diagnostic represents the current audible playback cursor.
+
+## Playback conventions
+
+`createPlayback(features, options)` in `src/playback.js` owns a lazily created sound
+engine. `play()` resumes audio from the Play gesture; `pause()`, `seek(minute)`,
+`setSpeed(speed)`, and `dispose()` cancel queued sounds immediately. The page loads
+the selected day paused and disposes the old player on selection changes. Only the
+latest requested session may update the controls; load and resume errors appear
+in the status line and development diagnostics.
+
+- The timeline always covers 390 exchange-minute slots, 09:30–15:59. Missing slots
+  are rests, with no invented bars; the end is 16:00. A beat lasts `0.5 / speed`
+  seconds. Speeds are 0.5×, 1×, 1.625× (default, 120 seconds), 2×, and 4×.
+- A 25 ms timer schedules up to 100 ms ahead against the audio clock, with 30 ms
+  startup lead time. The audible cursor comes from that clock, independently of
+  the last scheduled mapping. Delayed/background timers skip expired beats rather
+  than bunching them together. A suspended audio clock leaves the cursor still.
+- Pause retains the current integer minute. Resume, seek, and speed changes replay
+  that minute from its start, cancelling prior voices and event tails. Seeking
+  accepts integer slots 0–389 and preserves playing/paused state. A change while
+  audio resume is pending cancels the play request and leaves playback paused.
+- End-of-session stops all sounds and timers; Play then restarts at minute zero.
+  Replaying the first observed bar follows the engine's opening-gong policy.
+- `inspect()` exposes state, fractional position, minute, observed bar index (null
+  for rests), speed, next scheduling minute, waiting reason, last transition, and
+  engine diagnostics. `window.marketMusic.inspect()` adds page loading/error state.
+  This console surface supports development until the M6 debug panel is added.

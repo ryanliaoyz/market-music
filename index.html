@@ -8,7 +8,26 @@
 </head>
 <body>
   <h1>Market as Music</h1>
-  <p id="status">Loading…</p>
+  <main>
+    <p id="status" role="status">Loading…</p>
+    <label for="day">Trading day</label>
+    <select id="day" disabled></select>
+    <fieldset id="controls" disabled>
+      <legend>Playback</legend>
+      <button id="play" type="button">Play</button>
+      <label for="speed">Speed</label>
+      <select id="speed">
+        <option value="0.5">0.5×</option>
+        <option value="1">1× (120 BPM)</option>
+        <option value="1.625" selected>1.625× (2-minute day)</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+      </select>
+      <label for="seek">Session time (New York)</label>
+      <input id="seek" type="range" min="0" max="389" step="1" value="0">
+      <output id="time" for="seek">09:30</output>
+    </fieldset>
+  </main>
   <footer>
     <p>Data from the HF Data Library (Elkassabgi 2026), <a href="https://hfdatalibrary.com">https://hfdatalibrary.com</a>, CC BY 4.0.</p>
     <p>Data provided for free by IEX. By accessing or using IEX Historical Data, you agree to the <a href="https://www.iex.io/legal/hist-data-terms">IEX Historical Data Terms of Use</a>.</p>

@@ -1,1 +1,10 @@
 body { font-family: system-ui, sans-serif; background: #0b0d12; color: #e6e6e6; margin: 2rem; }
+main { max-width: 48rem; }
+label, output { display: block; margin-block: 0.75rem 0.25rem; }
+select, button, input { font: inherit; max-width: 100%; }
+select, button { padding: 0.5rem; }
+fieldset { margin-block: 1.5rem; border: 1px solid #69758a; }
+input[type="range"] { width: 100%; }
+button { min-width: 5rem; }
+a { color: #9dc4ff; }
+footer { margin-top: 3rem; font-size: 0.85rem; }

@@ -4,55 +4,10 @@ import { readFile } from "node:fs/promises";
 import { parseSessionCsv, loadCatalog, loadSession } from "../src/data.js";
 import { computeFeatures } from "../src/features.js";
 import { createSoundScore, createSoundEngine } from "../src/sound.js";
+import { AudioContext } from "./helpers/audio.js";
 
 const csv = await readFile(new URL("./fixtures/features.csv", import.meta.url), "utf8");
 const features = computeFeatures(parseSessionCsv(csv, { date: "2025-01-02", barCount: 21, previousClose: 125 }));
-
-// Only the external Web Audio API is replaced; mapping and graph construction are real.
-class AudioParam {
-  value = 0;
-  events = [];
-  setValueAtTime(value, time) { this.events.push(["set", value, time]); }
-  linearRampToValueAtTime(value, time) { this.events.push(["linear", value, time]); }
-  exponentialRampToValueAtTime(value, time) { this.events.push(["exponential", value, time]); }
-}
-
-class AudioNode {
-  connections = [];
-  gain = new AudioParam();
-  frequency = new AudioParam();
-  stops = [];
-  connect(node) { this.connections.push(node); }
-  disconnect() { this.connections = []; }
-  start(time) { this.started = time; }
-  stop(time) { this.stops.push(time); }
-}
-
-class AudioContext {
-  currentTime = 10;
-  sampleRate = 8000;
-  state = "suspended";
-  nodes = [];
-  destination = new AudioNode();
-  node(kind) {
-    const node = new AudioNode();
-    node.kind = kind;
-    this.nodes.push(node);
-    return node;
-  }
-  createGain() { return this.node("gain"); }
-  createDynamicsCompressor() { return this.node("compressor"); }
-  createOscillator() { return this.node("oscillator"); }
-  createWaveShaper() { return this.node("shaper"); }
-  createBiquadFilter() { return this.node("filter"); }
-  createBufferSource() { return this.node("noise"); }
-  createBuffer(channels, length) {
-    const data = new Float32Array(length);
-    return { getChannelData: () => data };
-  }
-  async resume() { this.state = "running"; }
-  async close() { this.state = "closed"; }
-}
 
 test("score maps price endpoints to C3/C6, log volume, harmony, and signed hits", () => {
   const score = createSoundScore(features);
