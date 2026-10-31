@@ -4,6 +4,33 @@ const NOTES = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B�
 const percent = value => value === null ? "n/a" : `${(value * 100).toFixed(4)}%`;
 const decimal = value => value === null ? "n/a" : value.toFixed(4);
 
+export function createLiveDebugPanel(root) {
+  let frame = null;
+  const write = (id, value) => {
+    const node = root.querySelector(`[data-debug="${id}"]`);
+    if (node.textContent !== value) node.textContent = value;
+  };
+  return {
+    render(snapshot) {
+      const current = snapshot.state === "playing" ? snapshot.audible : snapshot.latest;
+      const mapping = current?.mapping;
+      write("state", `${snapshot.state}${snapshot.state === "paused" ? " · mapping preview" : ""}`);
+      write("bar", current?.exchangeTimeMs != null ? `${new Date(current.exchangeTimeMs).toISOString().slice(11, 23)} UTC · frame ${current.id}` : "Waiting for a fresh price");
+      write("return", percent(current?.return ?? null));
+      write("sigma", percent(current?.sigma ?? null));
+      write("note", mapping ? `${NOTES[mapping.note % 12]}${Math.floor(mapping.note / 12) - 1} (MIDI ${mapping.note})` : "n/a");
+      write("gain", decimal(mapping?.gain ?? null));
+      write("drive", decimal(mapping?.drive ?? null));
+      write("rules", mapping?.rules.join(", ") || "none");
+      write("waiting", snapshot.waiting ?? "none");
+      write("reason", snapshot.reason);
+      frame = { frameId: current?.id ?? null, note: mapping?.note ?? null, gain: mapping?.gain ?? null,
+        references: current?.references ?? null, policy: snapshot.policy };
+    },
+    inspect: () => structuredClone(frame),
+  };
+}
+
 export function createDebugPanel(features, root) {
   const score = createSoundScore(features);
   const bars = new Map(score.bars.map(bar => [bar.minute, bar]));

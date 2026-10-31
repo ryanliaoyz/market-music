@@ -15,7 +15,6 @@ export function createSoundScore(features) {
   const closes = features.bars.map(bar => bar.close);
   const low = Math.min(...closes);
   const high = Math.max(...closes);
-  const position = price => high === low ? 0.5 : (price - low) / (high - low);
   const volumes = features.bars.map(bar => bar.volume).sort((a, b) => a - b);
   const medianVolume = median(volumes);
   const positive = volumes.filter(volume => volume > 0);
@@ -25,25 +24,26 @@ export function createSoundScore(features) {
     medianVolume,
     volumeReference,
     peakVolatility,
-    bars: features.bars.map((bar, index) => {
-      const note = scaleNote(position(bar.close), 3, 48);
-      const intensity = peakVolatility ? (bar.rollingVolatility ?? 0) / peakVolatility : 0;
-      const harmony = bar.return > 0 ? note + 4 : bar.return < 0 ? note - 6 : null;
-      const rules = [];
-      if (harmony !== null) rules.push(bar.return > 0 ? "up-major-third" : "down-tritone");
-      if (bar.event) rules.push(bar.event === "drop" ? "drop-crash" : "spike-bell");
-      if (index === 0 && features.openingGapReturn !== null && features.openingGapReturn !== 0) rules.push("opening-gong");
-      return {
-        index, minute: bar.minute, return: bar.return, sigma: features.sigma,
-        note, frequency: frequency(note), harmony,
-        harmonyFrequency: harmony === null ? null : frequency(harmony),
-        gain: 0.22 * clamp(Math.log2(1 + bar.volume / volumeReference) / 2),
-        intensity, cutoff: 400 + 7600 * intensity, drive: 24 * intensity,
-        droneNote: bar.vwap === null ? null : scaleNote(position(bar.vwap), 1, 36),
-        rules,
-      };
-    }),
+    bars: features.bars.map((bar, index) => mapSoundFrame({ ...bar, index, sigma: features.sigma },
+      { low, high, peakVolatility, volumeReference },
+      { opening: index === 0 && features.openingGapReturn !== null && features.openingGapReturn !== 0 })),
   };
+}
+
+export function mapSoundFrame(bar, { low, high, peakVolatility, volumeReference }, { gain, opening = false } = {}) {
+  const position = price => high === low ? 0.5 : (price - low) / (high - low);
+  const note = scaleNote(position(bar.close), 3, 48);
+  const intensity = peakVolatility ? clamp((bar.rollingVolatility ?? 0) / peakVolatility) : 0;
+  const harmony = bar.return > 0 ? note + 4 : bar.return < 0 ? note - 6 : null;
+  const rules = [];
+  if (harmony !== null) rules.push(bar.return > 0 ? "up-major-third" : "down-tritone");
+  if (bar.event) rules.push(bar.event === "drop" ? "drop-crash" : "spike-bell");
+  if (opening) rules.push("opening-gong");
+  return { index: bar.index, minute: bar.minute, return: bar.return, sigma: bar.sigma,
+    note, frequency: frequency(note), harmony, harmonyFrequency: harmony === null ? null : frequency(harmony),
+    gain: gain ?? 0.22 * clamp(Math.log2(1 + bar.volume / volumeReference) / 2),
+    intensity, cutoff: 400 + 7600 * intensity, drive: 24 * intensity,
+    droneNote: bar.vwap === null ? null : scaleNote(position(bar.vwap), 1, 36), rules };
 }
 
 function distortionCurve(drive) {
@@ -146,8 +146,48 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
     last = null;
   }
 
+  function playMapping(mapping, { when, duration = 0.5, skipIfLate = false } = {}) {
+    assertOpen();
+    const now = context.currentTime;
+    when ??= now;
+    if (!Number.isFinite(when)) throw new RangeError("Schedule time must be now or later");
+    if (!Number.isFinite(duration) || duration <= 0) throw new RangeError("Beat duration must be positive");
+    if (when < now) {
+      if (skipIfLate) return null;
+      throw new RangeError("Schedule time must be now or later");
+    }
+    return schedule(mapping, when, duration);
+  }
+
+  function schedule(mapping, when, duration) {
+    for (const [type, mix] of [["triangle", 1 - mapping.intensity], ["sawtooth", mapping.intensity]]) {
+      if (mix === 0 || mapping.gain === 0) continue;
+      tone(mapping.frequency, type, mapping.gain * mix, when, duration * 0.9, mapping);
+      if (mapping.harmonyFrequency !== null) tone(mapping.harmonyFrequency, type, mapping.gain * mix * 0.35, when, duration * 0.9, mapping);
+    }
+    if (mapping.droneNote !== null) {
+      if (!drone) {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        gain.gain.value = 0;
+        oscillator.connect(gain);
+        gain.connect(master);
+        oscillator.start(when);
+        drone = { oscillator, gain };
+      }
+      drone.oscillator.frequency.setValueAtTime(frequency(mapping.droneNote), when);
+      drone.gain.gain.setValueAtTime(0.045, when);
+      drone.gain.gain.setValueAtTime(0, when + duration);
+    }
+    for (const rule of mapping.rules) hit(rule, when);
+    last = { ...mapping, rules: [...mapping.rules], when, duration };
+    return { ...last, rules: [...last.rules] };
+  }
+
   return {
     score,
+    playMapping,
     async resume() {
       assertOpen();
       waiting = "audio-context-resume";
@@ -169,30 +209,7 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
         if (skipIfLate) return null;
         throw new RangeError("Schedule time must be now or later");
       }
-      const mapping = score.bars[index];
-      for (const [type, mix] of [["triangle", 1 - mapping.intensity], ["sawtooth", mapping.intensity]]) {
-        if (mix === 0 || mapping.gain === 0) continue;
-        tone(mapping.frequency, type, mapping.gain * mix, when, duration * 0.9, mapping);
-        if (mapping.harmonyFrequency !== null) tone(mapping.harmonyFrequency, type, mapping.gain * mix * 0.35, when, duration * 0.9, mapping);
-      }
-      if (mapping.droneNote !== null) {
-        if (!drone) {
-          const oscillator = context.createOscillator();
-          const gain = context.createGain();
-          oscillator.type = "sine";
-          gain.gain.value = 0;
-          oscillator.connect(gain);
-          gain.connect(master);
-          oscillator.start(when);
-          drone = { oscillator, gain };
-        }
-        drone.oscillator.frequency.setValueAtTime(frequency(mapping.droneNote), when);
-        drone.gain.gain.setValueAtTime(0.045, when);
-        drone.gain.gain.setValueAtTime(0, when + duration);
-      }
-      for (const rule of mapping.rules) hit(rule, when);
-      last = { ...mapping, rules: [...mapping.rules], when, duration };
-      return { ...last, rules: [...last.rules] };
+      return schedule(score.bars[index], when, duration);
     },
     stop,
     async dispose() {

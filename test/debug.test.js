@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { createDebugPanel } from "../src/debug.js";
+import { createDebugPanel, createLiveDebugPanel } from "../src/debug.js";
+import { createLiveFeatures } from "../src/live-features.js";
 import { createPlayback } from "../src/playback.js";
 import { computeFeatures } from "../src/features.js";
 import { parseSessionCsv } from "../src/data.js";
@@ -17,6 +18,23 @@ function panel() {
     text(id) { return this.querySelector(`[data-debug="${id}"]`).textContent; },
   };
 }
+
+test("live debug shows UTC previews and the actual audible frame, clearing rests", () => {
+  const root = panel(), debug = createLiveDebugPanel(root), features = createLiveFeatures();
+  features.accept({ price: 100, connectionId: 1, exchangeTimeMs: Date.parse("2026-10-30T12:00:00Z") });
+  const latest = features.sample(0);
+  const snapshot = { latest, state: "paused", waiting: null, reason: "test", policy: "live-v1" };
+  debug.render(snapshot);
+  assert.match(root.text("bar"), /12:00:00.000 UTC/);
+  assert.equal(root.text("gain"), "0.1100");
+  assert.equal(debug.inspect().note, latest.mapping.note);
+  debug.render({ ...snapshot, state: "playing", audible: null });
+  assert.equal(root.text("note"), "n/a");
+  debug.render({ ...snapshot, state: "playing", audible: latest });
+  assert.equal(debug.inspect().frameId, latest.id);
+  const copy = debug.inspect(); copy.references.low = -1;
+  assert.equal(debug.inspect().references.low, 100);
+});
 
 const csv = await readFile(new URL("./fixtures/features.csv", import.meta.url), "utf8");
 const features = computeFeatures(parseSessionCsv(csv, {

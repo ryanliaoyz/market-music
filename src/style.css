@@ -8,6 +8,9 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+#historical-source { margin-top: 1rem; }
+#feed-debug { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8rem; }
 
 body {
   max-width: 52rem;

@@ -7,6 +7,86 @@ The pipeline is `src/data.js` (validation) → `src/features.js` (pure calculati
 loader contracts, source choices, and session verification, and the
 [README](README.md) for running, testing, deployment, and manual checks.
 
+## Live crypto contracts
+
+The live pipeline is `live-feed.js` (Coinbase validation/connection) →
+`live-playback.js` (receive-time buffer/scheduling) → `live-features.js` (causal
+frames) → `sound.js` (shared mapping/synthesis). `main.js` wires Start/Stop and the
+existing chart/debug surfaces. Historical CSV loading and the 390-minute player
+retain their separate contracts below.
+
+### Subscription lifecycle
+
+- Selecting Live does not connect. Start resumes audio from its user gesture and
+  opens `wss://advanced-trade-ws.coinbase.com`, subscribing separately to public
+  `ticker` for `BTC-USD` and `heartbeats`, with no JWT. Stop sends unsubscribe
+  messages when open, closes the socket, cancels retries/audio, and clears the
+  session. Mode selection is disabled until Stop. There is no live Pause.
+- States are stopped, starting, waiting for first price, buffering, playing,
+  reconnecting, and error. Subscription errors leave Stop available and do not
+  close a healthy socket; Stop then Start retries. Audio failures propagate and
+  remain actionable while Stop retains subscription ownership.
+- Connection/subscription timeout is 10 seconds; missing heartbeats for five
+  seconds cause reconnect. A healthy subscribed but quiet market stays connected
+  and produces rests. Reconnect uses jittered exponential backoff up to 30 seconds,
+  resetting after 30 healthy seconds. Obsolete callbacks cannot emit data.
+- A network drop silences audio and clears the delayed segment. Reconnection
+  resubscribes, then buffers five seconds from its first fresh tick. Missing data
+  is never backfilled. Coinbase is the only shipped provider; Kraken is contingency
+  only, as described in the README.
+
+### Receive timeline and mapping
+
+- The first valid tick anchors a segment. Frame zero uses that tick; subsequent
+  cutoffs occur every 500 ms. The newest tick received within each interval is
+  used; there is no carried price in empty intervals. Exchange timestamps are
+  labels only. Monotonic browser receipt time determines the timeline.
+- Every frame has a playback deadline exactly 5,000 ms after its source cutoff.
+  Frames are prepared during buffering, then scheduled up to 100 ms ahead on the
+  audio clock by a 25 ms timer, with 470 ms voice duration. No frame consumes ticks
+  newer than its source cutoff. Ticks between cutoffs are quantized to the next
+  cutoff (at most another 500 ms); network/exchange latency is additional.
+- Late timers skip missed audio deadlines instead of shifting the delay or playing
+  a catch-up burst. Suspended audio does not consume a backlog on return. Buffered
+  and input frame bins are bounded; the visible chart retains up to 120 delayed
+  frames, with gaps across missing slots, reconnects, and sequence discontinuities.
+- Return is current price / preceding adjacent frame price − 1, otherwise null.
+  Pitch uses the trailing 60-second observed range (flat → midpoint). Realized
+  volatility is the root sum of squared available returns over ten frame slots;
+  intensity uses the trailing peak. Event threshold is 3× population σ of preceding
+  available returns in the window; require ten prior returns and positive σ.
+  No future tick can revise an emitted mapping.
+- Live gain is 0.11. `ticker.volume_24_h` is not trade size, so live has no
+  volume-derived gain, VWAP drone, or opening gong. Scale, harmony, timbre, and
+  spike/drop hits reuse `mapSoundFrame()` and `engine.playMapping()`. Historical
+  `createSoundScore()`/`playBar()` use the same mapping/synthesis with their original
+  normalization. A later Tone.js implementation can replace synthesis without
+  changing feed or timeline code.
+
+### Capture and diagnostics
+
+Validated ticks are immutable plain values: provider/product, connection ID,
+ticker-channel sequence, exchange/receipt timestamps, monotonic session offset,
+price, and sequence-gap flag. Duplicate/out-of-order messages are rejected;
+unrelated products are ignored. Heartbeat counters accept integer or decimal-string
+representations. Malformed payloads are counted and exposed, not silently recovered
+into fabricated prices.
+
+`createLivePlayback()` accepts injected clocks/timers and external audio contexts.
+Its `onTick` callback emits every accepted tick before coalescing, adding segment ID
+and session receipt offset. `onFrame` emits prepared frames with policy `live-v1`,
+segment ID, source/session offsets, intended playback offset, normalization
+references, and mapping. These callbacks are the GRO-27 recorder/replay seam; no
+recording persistence or export is implemented here.
+
+`inspect()` exposes active/state/reason, buffer duration, queue size, segment ID,
+newest received price/time, delayed cursor, delayed chart frames, audible frame,
+and audio diagnostics. Only delayed prices appear on the main chart; newest received
+data belongs in Debug. Audible frame timing, rather than scheduler lookahead,
+drives mapping diagnostics and event flashes. Reduced motion suppresses flashes.
+`window.marketMusic.inspect()` adds provider errors/retry timing, sequence/gap and
+rejection counters, tick/heartbeat ages, and rendered chart/debug snapshots.
+
 ## Feature calculation conventions
 
 `computeFeatures(loadedSession)` returns enriched `bars` with session and

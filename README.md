@@ -1,18 +1,24 @@
 # Market as Music
 
-A static page that turns a trading day into music: price sets pitch, volume sets
-loudness, and volatility adds distortion.
+A static page that turns historical trading days and live crypto prices into music.
+Price sets pitch and volatility adds distortion; historical volume sets loudness.
 
 ## Overview
 
 Eight bundled HF Clean sessions (seven SPY days and NVDA's DeepSeek day) play in
-the browser without a backend, runtime API, or credentials. A day picker,
+the browser without a backend or credentials. A day picker,
 play/pause, minute seek, and speed controls drive Web Audio, a synchronized price
 line, volatility background, event flashes, and a collapsible debug panel.
 Missing minutes remain silent rests, never fabricated bars. On phones the controls stack, with large touch targets and visible
 keyboard focus.
 
-| Market feature | Mapping |
+**Live crypto** streams BTC-USD directly from Coinbase's keyless public WebSocket.
+Start subscribes and buffers five seconds, then plays 500 ms musical frames on a
+timeline five seconds behind browser receipt time. A rolling 60-second chart follows
+that delayed timeline. Stop unsubscribes and silences audio; network drops reconnect
+and refill the buffer. The site remains entirely static on Vercel.
+
+| Historical market feature | Mapping |
 | --- | --- |
 | Close within the day's range | 16 C-minor-pentatonic notes, C3–C6; price line |
 | Volume relative to the day's median | Log-scaled lead gain, capped at 0.22 |
@@ -42,6 +48,23 @@ minutes. Pause/resume, seek, and speed changes restart the displayed minute.
 Changing days stops audio and loads paused; Play after the end replays the day.
 The opening gong repeats only when replaying the opening bar.
 
+### Live crypto
+
+Select **Live crypto · BTC-USD**, then **Start**. The connection opens only on Start;
+audio starts after the first price and a five-second **Buffering** period. The
+stream remains connected throughout playback, including quiet intervals. **Stop**
+is the only unsubscribe control and clears buffered audio/data. Stop before changing
+modes or restarting after an error; live mode has no pause, seek, or speed control.
+
+Price maps to the same pentatonic scale, return to harmony, and volatility/events
+to timbre and hits. Live gain is fixed at 0.11. Coinbase ticker volume is a rolling
+24-hour total, so live mode does not pretend it is trade size and has no volume-based
+gain, VWAP drone, or opening gong. Live normalization is causal and rolling rather
+than whole-day. See the [live contracts](SPEC.md#live-crypto-contracts).
+
+Kraken's public v2 ticker is a documented contingency if Coinbase is inaccessible
+in a target browser/region; no Kraken adapter or automatic provider switch ships.
+
 ### Diagnostics
 
 Expand **Debug panel** for the cursor's return, day σ, note/MIDI number, linear
@@ -57,6 +80,12 @@ the audible cursor; the chart and panel follow the cursor. See
 [playback](SPEC.md#playback-conventions), [visual](SPEC.md#visual-conventions), and
 [debug contracts](SPEC.md#debug-panel-conventions) for fields and timing.
 
+In live mode Debug separates the newest received price from the delayed mapping.
+It exposes connection/error/retry state, tick/heartbeat ages, buffer duration, queue
+size, segment ID, delayed cursor, and normalization references. The same values are
+available through `window.marketMusic.inspect()`; buffering never previews future
+prices on the main chart.
+
 ### Manual playback check (Ryan)
 
 - Try SPY and NVDA: pause mid-day, seek paused and playing, change speeds, and
@@ -71,6 +100,13 @@ the audible cursor; the chart and panel follow the cursor. See
 - With Debug open, seek paused, inspect a rest, replay the opening gong, and switch
   days. Previews must be labeled, rest values cleared, and old values hidden while
   loading.
+- Try Live on the deployed HTTPS URL: Start, observe five seconds of buffering,
+  then listen and compare the delayed chart with Debug. Stop during buffering and
+  playback; verify immediate silence, mode switching, and a fresh buffer on Start.
+- Temporarily interrupt the network: audio must stop, reconnect visibly, and refill
+  five seconds from the first fresh price. Return from a background tab and confirm
+  there is no catch-up burst. Check Coinbase reachability and audible quality on
+  speakers/headphones; these require a real feed/browser check.
 
 ## Test
 
@@ -82,7 +118,8 @@ npx playwright install --with-deps chromium
 ```
 
 Run `npm test` for Node unit tests followed by Playwright in headless Chromium
-with real Web Audio and bundled data. Run either suite with `npm run test:unit`
+with real Web Audio, bundled data, and a mocked live WebSocket. Tests never require
+the exchange or credentials. Run either suite with `npm run test:unit`
 or `npm run test:browser`. The browser runner starts/stops a Python server on
 port 4173; keep it free.
 
@@ -133,7 +170,9 @@ and deployed playback check are [pending](TODO.md#m7-browser-tests-and-deploy).
    Any static host supporting JavaScript modules and JSON/CSV works.
 3. Open the deployed HTTPS URL, confirm data loads and Play enables audio, and run
    the [manual playback check](#manual-playback-check-ryan), including both symbols
-   and Debug.
+   and Debug. Also verify Live Start/Stop and Coinbase connectivity. Live traffic
+   goes directly from the browser to `wss://advanced-trade-ws.coinbase.com`; no
+   Vercel functions, API keys, or proxy are needed.
 
 ## Known limits
 
@@ -144,8 +183,14 @@ and deployed playback check are [pending](TODO.md#m7-browser-tests-and-deploy).
   gain, volatility peak, and event threshold. Days normalize independently. VWAP
   is a bar-based approximation; opening gaps are separate from intraday σ, and
   returns across missing minutes are excluded from one-minute events.
-- Only bundled recent sessions are supported: no live feed or licensed minute
-  data for the 1987, 2008, or 2010 flash-crash examples.
+- Historical playback supports bundled recent sessions, not licensed minute data
+  for the 1987, 2008, or 2010 flash-crash examples.
+- Live prices are sampled ticker updates, not a complete trade history. They use
+  browser receipt timing with a fixed five-second delay on a 500 ms frame grid;
+  network/exchange latency is additional. No historical backfill is requested.
+  Missing ticks are rests; geographic/network restrictions can make Coinbase
+  unavailable. Recording, WAV export, share/replay links, and Tone.js presets are
+  planned in [Version 2](TODO.md#version-2).
 - Automated browser coverage is Chromium only. Audio needs a user gesture;
   delayed/background timers skip expired beats rather than playing a burst later.
 
