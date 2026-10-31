@@ -54,4 +54,9 @@
 - [x] New recordings preserve musical patterns in shared replay and WAV, while v1 links, 30-second clips and the 4 KiB limit remain supported.
 - [ ] Ryan auditions quiet/busy Live periods across all four presets on deployed HTTPS and compares the sound with shared replay and WAV.
 
+### M2: Immersive UI (GRO-33)
+
+- [x] Listeners can use the full-screen reactive visual, one Start/Stop control and keyboard-accessible preset cards on desktop and mobile, with Debug collapsed by default.
+- [x] Desktop and mobile screenshots demonstrate the layout, and the existing playback, recording and offline checks pass.
+
 ## Later

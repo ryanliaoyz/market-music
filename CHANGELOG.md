@@ -2,6 +2,9 @@
 
 ## v2.1 — Unreleased
 
+- GRO-33: full-screen reactive dark visual, one large Start/Stop control,
+  keyboard-accessible preset cards, and a mobile-first layout. Debug and credits
+  open on demand; recording, share links and WAV remain directly accessible.
 - GRO-34: musical Live mode with price-change scale degrees, in-key trend-driven
   chords, actual Coinbase trade-rate rhythms and size accents, and four versioned
   presets with distinct rhythmic textures. The five-second delay is preserved.

@@ -6,11 +6,12 @@ Price sets pitch and volatility adds distortion; historical volume sets loudness
 ## Overview
 
 Eight bundled HF Clean sessions (seven SPY days and NVDA's DeepSeek day) play in
-the browser without a backend or credentials. A day picker,
-play/pause, minute seek, and speed controls drive Web Audio, a synchronized price
-line, volatility background, event flashes, and a collapsible debug panel.
-Missing minutes remain silent rests, never fabricated bars. On phones the controls stack, with large touch targets and visible
-keyboard focus.
+the browser without a backend or credentials. A full-screen dark visual follows
+price and volatility, with one large Start/Stop button and four selectable sound
+cards. Historical playback also offers a day picker, minute seek and speed controls.
+Missing minutes remain silent rests, never fabricated bars. Controls stack on phones,
+with large touch targets and visible keyboard focus. **Debug panel** opens diagnostics;
+**Sources & credits** opens data attribution.
 
 **Live crypto** streams BTC-USD directly from Coinbase's keyless public WebSocket.
 Start subscribes and buffers five seconds, then plays 500 ms musical frames on a
@@ -26,7 +27,7 @@ replay and foreground-only playback with explicit tap-to-resume behavior.
 | --- | --- |
 | Close within the day's range | 16 C-minor-pentatonic notes, C3–C6; price line |
 | Volume relative to the day's median | Log-scaled lead gain, capped at 0.22 |
-| Rolling 5-minute volatility relative to the day's peak | Triangle-to-saw blend, brighter filter, distortion; blue-to-orange background |
+| Rolling 5-minute volatility relative to the day's peak | Triangle-to-saw blend, brighter filter, distortion; teal-to-warm ambient glow |
 | Positive / negative adjacent-minute return | Major third above / tritone below the lead |
 | Absolute one-minute return > 3× day population σ | Spike bell / drop crash; green / pink flash |
 | Nonzero opening gap from the prior session's last observed close | Gong and gold flash |
@@ -46,13 +47,15 @@ python3 -m http.server
 Open `http://localhost:8000`. No build or npm install is needed. Use HTTP, not a
 local `index.html` file, because the app fetches data.
 
-Choose a day and press **Play** to enable audio. One exchange minute is one beat
+Choose a day and press **Start** to enable audio. One exchange minute is one beat
 at base 120 BPM (1×); the default 1.625× plays 09:30–16:00 New York time in two
-minutes. Pause/resume, seek, and speed changes restart the displayed minute.
-Changing days stops audio and loads paused; Play after the end replays the day.
+minutes. Historical **Stop** pauses at the displayed minute; **Start** resumes it.
+Resume, seek, and speed changes restart the displayed minute.
+Changing days stops audio and loads paused; Start after the end replays the day.
 The opening gong repeats only when replaying the opening bar.
 
-**Sound preset** is available before and during playback in both modes. In historical mode, Classic
+The **Choose your sound** cards are available before and during playback in both modes.
+Tap a card or use the arrow keys within the radio group. In historical mode, Classic
 keeps the original sound; Ambient uses a soft sine voice, Plucky a short triangle
 voice and major-pentatonic scale, and Bass-heavy a saw voice one octave lower.
 The others use minor pentatonic. Historical harmony retains the signed major-third/tritone
@@ -100,7 +103,7 @@ or audio suspension also seals the clip. An empty capture produces no download.
 **Download WAV** renders the clip locally with OfflineAudioContext as mono 44.1 kHz
 16-bit PCM, cut at the clip endpoint. **Copy link** displays a selectable URL and
 copies it when clipboard access is available. Its versioned hash contains the
-recording, capped at 4 KiB. Opening a link loads a paused replay; press **Play** to
+recording, capped at 4 KiB. Opening a link loads a paused replay; press **Start** to
 hear it. New clips use `#recording=v2.` to retain resolved chords, rhythm and accents;
 existing `#recording=v1.` links keep their original sound. Captured presets are fixed
 during replay. Replay needs no exchange access.
@@ -135,21 +138,21 @@ prices on the main chart.
 
 - On iOS Safari and Android Chrome, check portrait/landscape controls, first-tap
   sound, lock/unlock, and switching apps during playback and recording. Returning
-  must stay silent until Play/Start; Live must refill its five-second buffer.
+  must stay silent until Start; Live must refill its five-second buffer.
 - Install from the browser's home-screen/install menu on HTTPS. After one online
   visit and closing/reopening the app, try an offline launch and shared recording
   link. Verify safe-area spacing and first-tap sound in standalone mode too.
 - Try SPY and NVDA: pause mid-day, seek paused and playing, change speeds, and
-  switch days during playback. Old audio must stop immediately, Play must resume
+  switch days during playback. Old audio must stop immediately, Start must resume
   the displayed minute, and the end must stay silent until replayed.
 - Listen on speakers/headphones for calm-to-distorted timbre, harmony, drone, and
   event hits; automated checks cannot assess audible quality.
-- Select each sound preset before Play/Start and during playback. Check historical
+- Select each sound preset before Start and during playback. Check historical
   minute restart, live next-frame switching without new buffering, and Debug's
-  selected versus audible preset. Stop/Pause must silence all voices and tails.
+  selected versus audible preset. Stop must silence all voices and tails.
 - Watch the chart: missing minutes break the line and hide the price marker,
   backward seeks hide later prices, and day changes clear the old chart. At 0.5×,
-  compare event flashes with sounds. Pause must stop flashes; enabling the
+  compare event flashes with sounds. Stop must stop flashes; enabling the
   system's reduced-motion setting must hide them.
 - With Debug open, seek paused, inspect a rest, replay the opening gong, and switch
   days. Previews must be labeled, rest values cleared, and old values hidden while
@@ -248,7 +251,7 @@ commit and its CI passed:
 - Run the [manual playback check](#manual-playback-check-ryan): historical SPY/NVDA,
   presets, real Coinbase Start/Stop and reconnect, and audible quality.
 - Record while changing presets, download and listen to the WAV, and open the copied
-  link in a fresh tab. Play must replay the captured clip without a live connection.
+  link in a fresh tab. Start must replay the captured clip without a live connection.
 - On iOS Safari and Android Chrome, check installation, first-tap audio,
   background/lock recovery, and offline shell/shared replay after an online visit.
   Historical data and Live still require connectivity.
@@ -268,7 +271,7 @@ Open the home-screen icon once online to cache the shell before trying offline u
 
 Playback is foreground-only. Hiding the page pauses historical playback at its
 current minute and stops live/shared replay, finishing any active recording.
-Returning requires Play/Start; shared replay restarts from the beginning. Browser
+Returning requires Start; shared replay restarts from the beginning. Browser
 audio interruptions also require a fresh tap. No background audio or feed is promised.
 
 On HTTPS or localhost, a service worker caches only the static application shell.
