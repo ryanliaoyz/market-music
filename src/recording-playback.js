@@ -1,7 +1,7 @@
 import { createSoundEngine } from "./sound.js";
 import { recordingMapping } from "./recording-codec.js";
 
-export function createRecordingPlayback(clip, { context, onChange = () => {}, tone,
+export function createRecordingPlayback(clip, { context, onChange = () => {}, tone, volume = 1,
   setInterval: every = globalThis.setInterval, clearInterval: cancel = globalThis.clearInterval } = {}) {
   let engine = null;
   let state = "stopped", reason = "shared-recording", start = 0, timer = null, generation = 0, next = 0;
@@ -27,9 +27,10 @@ export function createRecordingPlayback(clip, { context, onChange = () => {}, to
     onChange(inspect());
   }
   return { inspect, stop, pause: stop,
+    setVolume(value) { volume = value; engine?.setVolume(value); onChange(inspect()); },
     async play() {
       stop(); const request = ++generation; state = "starting"; onChange(inspect());
-      engine ??= createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone });
+      engine ??= createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone, volume });
       try { await engine.resume(); }
       catch (cause) { if (request === generation) stop("resume-failed"); throw cause; }
       if (request !== generation) return;

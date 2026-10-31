@@ -14,7 +14,7 @@ directly from the browser to Coinbase, and recording replay/WAV export run local
 The service worker stays at the app root so its scope covers the shell. See the
 [production path and acceptance checklist](README.md#deploy).
 
-Release v2 does not change the `#recording=v1.` format or its synthesis semantics.
+Release v2 does not change the `#recording=v1.` format or its note-mapping semantics.
 Version 2.1 adds musical live synthesis and `#recording=v2.` while retaining v1 replay.
 Worker cache versions track shell changes independently of release numbering;
 documentation-only changes do not require a cache bump.
@@ -44,7 +44,9 @@ out-of-clip offsets, nonfinite/out-of-range synthesis, and nonpositive prices
 Version 2 uses the same header, limits and first 24 frame bytes, with preset indices
 in `LIVE_PRESETS` order. Each 29-byte frame adds three uint8 chord MIDI notes,
 a uint8 four-step rhythm mask and uint8 accent (0–3). Reserved bytes stay zero.
-Notes must belong to the preset scale, the mask to its versioned rhythm options,
+Lead notes must belong to the preset scale within root through root + 24 inclusive;
+chords must match the mapper's ordered triads on degrees 0, 3, 4 or 5.
+The mask must belong to its versioned rhythm options,
 harmony must equal the first chord note, and intensity must equal accent / 3.
 A clip cannot mix synthesis versions. Sixty frames fit comfortably below 4 KiB.
 The decoder accepts both prefixes; encoding chooses from the captured preset version.
@@ -52,12 +54,24 @@ The decoder accepts both prefixes; encoding chooses from the captured preset ver
 The compact synthesis snapshot is deliberate: prices alone cannot reproduce the
 causal normalization preceding a mid-session capture. Version 1 fixes gain at
 0.11 and derives frequency, harmony frequency, filter and drive from captured
-notes/intensity. Preset IDs and version 1 synthesis semantics remain replay
-contracts. A format/synthesis change requires a new version.
+notes/intensity. Version 1 accepts only the mapper's three-octave scale notes,
+including the upper root; harmony is absent, a major third above or a tritone below
+the lead (intentionally not always in scale). Preset IDs and note mappings remain
+replay contracts. Validation hardening rejects previously accepted crafted notes;
+the shared output safety bus applies to both versions without changing their payloads.
 
 `live-music.js` expands resolved v2 notes/chords/masks/accents identically for live,
 replay and WAV; it does not recompute market history. Existing v1 preset definitions
 and synthesis remain frozen. New musical definitions require new preset IDs.
+
+All synthesis paths, including historical drone/events and offline export, feed one
+compressor → approximately 14 kHz lowpass → −1 dBFS sample-peak limiter/ceiling →
+user gain bus. The final WaveShaper ceiling has no oversampling and leaves rounding
+headroom for Float32 and PCM16: a compressor threshold alone cannot bound transients.
+The guarantee is digital sample peaks, not reconstructed analog true peaks.
+Listening gain is 0–1 with a short ramp, separate from endpoint gain, and survives
+mode/day changes for the page session. WAV always renders at unity user gain through
+the same bus. Debug exposes bus configuration; disposal disconnects all bus nodes.
 
 `recording-playback.js` schedules those mappings with the shared sound engine,
 requires a Start gesture, preserves gaps, skips late deadlines, and stops all tails

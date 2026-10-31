@@ -2,6 +2,9 @@
 
 ## v2.1 — Unreleased
 
+- M0: enforced CSP and deployment security headers, unverified shared-clip labeling,
+  encoder-bounded v1/v2 notes, fixed Live error wording with provider details in Debug,
+  and a shared lowpass/−1 dBFS peak ceiling with session-only listening volume.
 - GRO-33: full-screen reactive dark visual, one large Start/Stop control,
   keyboard-accessible preset cards, and a mobile-first layout. Debug and credits
   open on demand; recording, share links and WAV remain directly accessible.

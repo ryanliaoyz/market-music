@@ -11,6 +11,7 @@ class AudioNode {
   connections = [];
   gain = new AudioParam();
   frequency = new AudioParam();
+  Q = new AudioParam();
   stops = [];
   connect(node) { this.connections.push(node); }
   disconnect() { this.connections = []; }

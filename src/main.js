@@ -44,6 +44,8 @@ const controls = document.getElementById("controls");
 const play = document.getElementById("play");
 const speed = document.getElementById("speed");
 const seek = document.getElementById("seek");
+const volume = document.getElementById("volume");
+const listeningVolume = () => Number(volume.value) / 100;
 const time = document.getElementById("time");
 const status = document.getElementById("status");
 const chart = document.getElementById("chart");
@@ -108,7 +110,9 @@ function renderRecording(snapshot = playback?.inspect()) {
 function showError(cause) {
   error = cause.message;
   status.textContent = navigator.onLine === false ? "Offline. Connect to load historical sessions or start Live; shared recording links can replay offline." :
-    `Unable to play: ${error}. ${mode.value === "live" ? "Press Stop, then Start to retry." : "Try selecting the day again or pressing Start."}`;
+    mode.value === "live" ? "Live unavailable. Press Stop, then Start to retry." :
+    "Unable to play. Try selecting the day again or pressing Start.";
+  document.getElementById("audio-debug").textContent = JSON.stringify({ error }, null, 2);
 }
 
 function render(snapshot) {
@@ -123,6 +127,7 @@ function render(snapshot) {
   scene.style.setProperty("--scene-hue", String(175 - intensity * 140));
   scene.style.setProperty("--scene-energy", String(0.2 + intensity * 0.3));
   debug?.render(snapshot);
+  document.getElementById("audio-debug").textContent = JSON.stringify({ volume: listeningVolume(), audio: snapshot.audio, error }, null, 2);
   const mapping = debug?.inspect();
   scene.style.setProperty("--note-position", String((mapping?.note ?? 60) - 60));
   const active = snapshot.mode === "live" ? snapshot.active : ["playing", "starting"].includes(snapshot.state);
@@ -140,7 +145,7 @@ function render(snapshot) {
     const messages = { stopped: "Live crypto ready. Press Start to subscribe.", starting: "Starting audio…",
       waiting: "Waiting for the first BTC-USD price…", buffering: "Buffering · 5 seconds…",
       playing: "Playing · 5 s delayed · BTC-USD · Coinbase", reconnecting: "Connection lost. Reconnecting to Coinbase…",
-      error: `Live unavailable: ${snapshot.audioError ?? error ?? feed?.inspect().error ?? snapshot.reason}. Press Stop, then Start to retry.` };
+      error: "Live unavailable. Press Stop, then Start to retry." };
     if (!resumeNeeded) status.textContent = messages[snapshot.state] ?? snapshot.state;
     if (feed) feedDebug.textContent = JSON.stringify({ ...feed.inspect(), retainedFrames: snapshot.frames.length,
       policy: snapshot.policy, references: snapshot.latest?.references ?? null,
@@ -181,7 +186,7 @@ async function selectDay(sessions) {
     if (request !== selection) return;
     visuals = createVisuals(features, chart);
     debug = createDebugPanel(features, debugPanel);
-    playback = createPlayback(features, { onChange: render, presetId: selectedPreset() });
+    playback = createPlayback(features, { onChange: render, presetId: selectedPreset(), volume: listeningVolume() });
     render(playback.inspect());
     chart.hidden = false;
     debugPanel.hidden = false;
@@ -194,12 +199,14 @@ async function selectDay(sessions) {
   }
 }
 
-function configureMode(live) {
+function configureMode(live, replay) {
   for (const id of ["historical-source", "historical-speed", "historical-time", "seek", "historical-debug-help"]) {
-    document.getElementById(id).hidden = live;
+    document.getElementById(id).hidden = live || replay;
   }
   document.getElementById("live-product").hidden = !live;
+  document.getElementById("replay-product").hidden = !replay;
   feedDebug.hidden = !live;
+  live ||= replay;
   document.getElementById("debug-bar-label").textContent = live ? "Current frame · UTC" : "Current bar · New York time";
   document.getElementById("debug-return-label").textContent = live ? "500 ms return" : "1-minute return";
   document.getElementById("debug-sigma-label").textContent = live ? "Trailing return σ" : "Day σ · population standard deviation";
@@ -222,14 +229,14 @@ async function selectMode() {
   const selectedIndex = [...preset.querySelectorAll("input")].findIndex(input => input.checked);
   const musicalReplay = replay && sharedClip.frames[0].presetId.endsWith("-v2");
   renderPresets(live || musicalReplay ? LIVE_PRESETS : PRESETS, selectedIndex);
-  configureMode(live || replay);
+  configureMode(live, replay);
   preset.disabled = replay;
   await previous?.dispose();
   if (request !== selection) return;
   mode.disabled = false;
   if (replay) {
     visuals = createLiveVisuals(chart); debug = createLiveDebugPanel(debugPanel);
-    playback = createRecordingPlayback(sharedClip, { onChange: snapshot => { if (request === selection) render(snapshot); } });
+    playback = createRecordingPlayback(sharedClip, { volume: listeningVolume(), onChange: snapshot => { if (request === selection) render(snapshot); } });
     chart.querySelector("figcaption").textContent = "Recorded BTC-USD · relative time · USD";
     document.getElementById("chart-title").textContent = "Recorded BTC-USD prices";
     controls.disabled = false; chart.hidden = debugPanel.hidden = false; loading = false;
@@ -242,7 +249,7 @@ async function selectMode() {
   }
   visuals = createLiveVisuals(chart);
   debug = createLiveDebugPanel(debugPanel);
-  playback = createLivePlayback({ presetId: selectedPreset(), onSchedule: recorder.schedule, onCancel: recorder.cancel,
+  playback = createLivePlayback({ volume: listeningVolume(), presetId: selectedPreset(), onSchedule: recorder.schedule, onCancel: recorder.cancel,
     onBoundary: recorder.boundary, onChange: snapshot => { if (request === selection) render(snapshot); } });
   feed = createLiveFeed({
     onTick: tick => { if (request === selection) playback.accept(tick); },
@@ -286,6 +293,7 @@ play.addEventListener("click", async () => {
   }
 });
 seek.addEventListener("input", () => playback.seek(Number(seek.value)));
+volume.addEventListener("input", () => playback.setVolume(listeningVolume()));
 speed.addEventListener("change", () => playback.setSpeed(Number(speed.value)));
 preset.addEventListener("change", () => {
   try { playback.setPreset(selectedPreset()); } catch (cause) { showError(cause); }
