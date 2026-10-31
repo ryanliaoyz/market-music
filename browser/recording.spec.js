@@ -11,18 +11,20 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
     });
   });
   await page.routeWebSocket("wss://advanced-trade-ws.coinbase.com/**", socket => {
+    const origin = Date.now(), exchangeOrigin = Date.parse("2026-10-30T12:00:00Z");
     socket.onMessage(data => {
       if (JSON.parse(data).channel === "ticker") socket.send(JSON.stringify({ channel: "ticker", sequence_num: 0, timestamp: "2026-10-30T12:00:00Z",
-        events: [{ type: "snapshot", tickers: [{ product_id: "BTC-USD", price: "101" }] }] }));
+        events: [{ type: "snapshot", tickers: [{ product_id: "BTC-USD", price: "101", best_bid: "101", best_ask: "101" }] }] }));
     });
     let sequence = 1;
     let tradeSequence = 0;
     const timer = setInterval(() => {
+      const timestamp = new Date(exchangeOrigin + Date.now() - origin).toISOString();
       socket.send(JSON.stringify({ channel: "heartbeats", sequence_num: 0, events: [{ heartbeat_counter: "1" }] }));
-      socket.send(JSON.stringify({ channel: "ticker", sequence_num: sequence++, timestamp: "2026-10-30T12:00:00Z", events: [{ type: "update", tickers: [{ product_id: "BTC-USD", price: "102" }] }] }));
+      socket.send(JSON.stringify({ channel: "ticker", sequence_num: sequence++, timestamp, events: [{ type: "update", tickers: [{ product_id: "BTC-USD", price: "102", best_bid: "102", best_ask: "102" }] }] }));
       socket.send(JSON.stringify({ channel: "market_trades", sequence_num: tradeSequence++, events: [{ type: "update",
         trades: Array.from({ length: 10 }, (_, n) => ({ product_id: "BTC-USD", trade_id: `${tradeSequence}:${n}`,
-          price: "102", size: "0.01", side: "BUY", time: "2026-10-30T12:00:00Z" })) }] }));
+          price: "102", size: "0.01", side: "BUY", time: timestamp })) }] }));
     }, 250);
     socket.onClose(() => clearInterval(timer));
   });

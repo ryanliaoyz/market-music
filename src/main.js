@@ -149,6 +149,7 @@ function render(snapshot) {
     if (!resumeNeeded) status.textContent = messages[snapshot.state] ?? snapshot.state;
     if (feed) feedDebug.textContent = JSON.stringify({ ...feed.inspect(), retainedFrames: snapshot.frames.length,
       policy: snapshot.policy, references: snapshot.latest?.references ?? null,
+      signal: snapshot.signal, aggregate: snapshot.aggregate,
       bufferedMs: snapshot.bufferedMs, queueSize: snapshot.queueSize, segmentId: snapshot.segmentId,
       newestReceived: snapshot.newestReceived, delayedCursorMs: snapshot.delayedCursorMs }, null, 2);
     return;

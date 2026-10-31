@@ -1,0 +1,7 @@
+[
+  { "offset": 0, "mid": 100, "spread": 0.01 },
+  { "offset": 10, "mid": 101, "spread": 0.02 },
+  { "offset": 120, "mid": 99, "spread": 0.01 },
+  { "offset": 499, "mid": 100, "spread": 0.01 },
+  { "offset": 8000, "mid": 102, "spread": 0.03 }
+]

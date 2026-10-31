@@ -1,11 +1,12 @@
 const CACHE_PREFIX = "market-music-shell-";
-const CACHE = `${CACHE_PREFIX}v4`;
+const CACHE = `${CACHE_PREFIX}v5`;
 // Explicit shell only: data, recordings and network responses never enter this cache.
 const SHELL = [
   "./index.html", "./manifest.webmanifest", "./src/style.css",
   "./src/main.js", "./src/pwa.js", "./src/data.js", "./src/features.js",
   "./src/playback.js", "./src/visuals.js", "./src/debug.js", "./src/live-feed.js",
   "./src/live-playback.js", "./src/live-features.js", "./src/live-music.js", "./src/presets.js",
+  "./src/live-aggregate.js", "./src/live-controls.js",
   "./src/recording.js", "./src/recording-codec.js", "./src/recording-playback.js",
   "./src/wav.js", "./src/sound.js", "./src/tone-engine.js", "./src/version.js",
   "./vendor/Tone-15.1.22.js", "./icons/icon-192.png", "./icons/icon-512.png",
