@@ -38,7 +38,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
   function clearSegment(why) {
     onBoundary(engine?.inspect().currentTime ?? 0, why);
     for (const item of scheduled) if (item.when > engine.inspect().currentTime) onCancel(item.frame.scheduleId);
-    engine?.stop(); features = createLiveFeatures();
+    engine?.silence(); features = createLiveFeatures();
     origin = null; frames = []; built = -1; nextAudio = 0;
      aggregate = null;
     audible = null; scheduled = []; reason = why;
@@ -64,11 +64,10 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     const first = Math.max(built + 1, Math.ceil((time - origin - DELAY_MS) / FRAME_MS));
     for (let slot = first; slot <= sourceSlot; slot++) build(slot);
     const cursor = time - origin - DELAY_MS;
-    if (audioReady && cursor >= 0 && state !== "error") state = "playing";
     if (!audioReady || engine.inspect().contextState !== "running") {
       onBoundary(engine.inspect().currentTime, "audio-suspended");
       for (const item of scheduled) onCancel(item.frame.scheduleId);
-      engine?.stop(); audible = null; scheduled = [];
+      engine?.silence(); audible = null; scheduled = [];
       nextAudio = Math.max(nextAudio, Math.floor(cursor / FRAME_MS) + 1);
       notify(); return;
     }
@@ -88,7 +87,8 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       const resolved = getPreset(presetId).rhythm ? musicalMapping(frame, presetId) : mapSoundFrame({ index: frame.id, minute: frame.slot, close: frame.price,
         return: frame.return, sigma: frame.sigma, event: frame.event, rollingVolatility: frame.rollingVolatility,
         vwap: null }, frame.references, { gain: 0.11, presetId });
-      const mapping = engine.playMapping(resolved, { when, duration: 0.47, skipIfLate: true });
+      const mapping = engine.playMapping(resolved, { when, duration: 0.47, skipIfLate: true,
+        energy: frame.controls.energy, hits: frame.controls.hits, beatIndex: frame.slot, beatDuration: FRAME_MS / 1000 });
       if (mapping) {
         const captured = { ...frame, mapping, presetId, scheduleId: `${segmentId}:${frame.slot}`,
           when, duration: 0.47, until: when + 0.47 };
@@ -97,7 +97,10 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
         if (audioNow >= when) audible = captured;
       }
     }
-    reason = cursor < 0 ? "buffering" : "delayed-timeline";
+    // The audio clock can reach a scheduled frame just before the wall cursor.
+    const playing = cursor >= 0 || audible !== null;
+    if (playing && state !== "error") state = "playing";
+    reason = playing ? "delayed-timeline" : "buffering";
     notify();
   }
   return {
@@ -174,7 +177,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     },
     stop() {
       generation++; active = false; audioReady = false; audioError = null; cancel(timer); timer = null;
-      clearSegment("stop"); newestReceived = null; state = "stopped"; notify();
+      clearSegment("stop"); engine?.stop(); newestReceived = null; state = "stopped"; notify();
     },
     async dispose() {
       if (disposed) return;

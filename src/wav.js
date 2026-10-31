@@ -18,6 +18,7 @@ export async function renderWav(clip, { OfflineContext = globalThis.OfflineAudio
   const context = new OfflineContext(1, Math.ceil(clip.durationMs * 44.1), 44100);
   const engine = createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone });
   try {
+    await engine.prepare();
     for (const frame of clip.frames) engine.playMapping(recordingMapping(frame), { when: frame.offsetMs / 1000, duration: 0.47 });
     const buffer = await engine.renderOffline();
     return new Blob([encodeWav(buffer)], { type: "audio/wav" });
