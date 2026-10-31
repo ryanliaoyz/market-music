@@ -60,7 +60,7 @@ replay and WAV; it does not recompute market history. Existing v1 preset definit
 and synthesis remain frozen. New musical definitions require new preset IDs.
 
 `recording-playback.js` schedules those mappings with the shared sound engine,
-requires a Play gesture, preserves gaps, skips late deadlines, and stops all tails
+requires a Start gesture, preserves gaps, skips late deadlines, and stops all tails
 at the endpoint. It never opens a feed. `wav.js` uses the same mappings with native
 OfflineAudioContext (mono, 44,100 Hz) and PCM16 WAV encoding. Tone's offline wrapper
 advances its own clock; frame cleanup waits until rendering finishes. WAV length
@@ -74,7 +74,7 @@ is inspectable in the existing Debug panel and `window.marketMusic.inspect()`.
 `main.js` owns foreground-only lifecycle handling. Hidden visibility or pagehide
 pauses historical playback and stops live/shared replay. Live Stop closes the
 socket, cancels retries/watchdogs, clears the delayed segment and finishes capture.
-Returning never auto-starts; the next Play/Start gesture resumes historical at its
+Returning never auto-starts; the next Start gesture resumes historical at its
 minute, restarts replay, or reconnects live with a fresh five-second buffer.
 Pending audio-start completions cannot undo Stop/Pause. Browser audio suspension
 detected by playback snapshots follows the same interruption path. Audio contexts
@@ -292,7 +292,7 @@ mappings and normalization references. Neither is the audible cursor.
 ## Playback conventions
 
 `createPlayback(features, options)` lazily owns a sound engine. `play()` resumes
-audio from the Play gesture; `pause()`, `seek(minute)`, `setSpeed(speed)`, and
+audio from the Start gesture; `pause()`, `seek(minute)`, `setSpeed(speed)`, and
 `dispose()` immediately cancel queued sounds. Day changes dispose the old player
 and load paused. Only the latest request may update controls; loading/resume errors
 appear in the status line and development diagnostics.
@@ -306,12 +306,25 @@ appear in the status line and development diagnostics.
 - Pause retains the integer minute. Resume, seek, and speed changes replay it from
   the start, cancelling voices/tails. Seek accepts integer slots 0–389 and preserves
   playing/paused state. Changes during pending resume cancel play and leave paused.
-- End stops sounds/timers; Play restarts at zero, following the opening-gong policy.
+- End stops sounds/timers; Start restarts at zero, following the opening-gong policy.
 - `inspect()` exposes state, fractional position, minute, observed bar index (null
   for rests), speed, next scheduling minute, waiting reason, last transition, and
   engine diagnostics. `window.marketMusic.inspect()` adds page loading/error state.
 
 ## Visual conventions
+
+`main.js` renders four native radio cards, retaining their selection across days
+and matching preset families across modes. Shared replay disables the cards because
+its captured presets drive synthesis. The primary button reads Start/Stop in all
+modes and exposes `aria-pressed`; historical Stop calls pause and retains its minute.
+Debug and credits use closed-by-default native disclosures. Recording actions stay
+outside Debug. The mobile grid uses two card columns, expanding to four on desktop.
+
+The fixed viewport scene sits behind the controls. Its ambient glow uses the rendered
+visual intensity (teal → warm) and debug note position, without another timer or
+lookahead. Only the ambient layer eases between values; reduced motion removes easing
+and event flashes. Derived values remain inspectable through the existing visual/debug
+snapshots and the scene's `--scene-hue`, `--scene-energy` and `--note-position` properties.
 
 `createVisuals(features, svg)` renders the existing 25 ms playback snapshots,
 without its own timer/event queue or the sound engine's lookahead mapping.
