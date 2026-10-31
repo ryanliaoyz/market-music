@@ -3,7 +3,7 @@ import { recordingMapping } from "./recording-codec.js";
 
 export function createRecordingPlayback(clip, { context, onChange = () => {}, tone,
   setInterval: every = globalThis.setInterval, clearInterval: cancel = globalThis.clearInterval } = {}) {
-  const engine = createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone });
+  let engine = null;
   let state = "stopped", reason = "shared-recording", start = 0, timer = null, generation = 0, next = 0;
   const frames = clip.frames.map((frame, index) => ({ ...frame, id: index, slot: Math.round(frame.offsetMs / 500),
     exchangeTimeMs: frame.offsetMs, mapping: recordingMapping(frame) }));
@@ -14,9 +14,9 @@ export function createRecordingPlayback(clip, { context, onChange = () => {}, to
     const audible = latest && elapsed < latest.offsetMs + 470 ? { ...latest, when: start + latest.offsetMs / 1000 } : null;
     return { mode: "recording", state, reason, elapsedMs: elapsed, durationMs: clip.durationMs,
       presetId: latest?.presetId ?? frames[0].presetId, frames: state === "playing" ? visible : [], latest, audible,
-      waiting: state === "starting" ? "audio-context-resume" : null, audio: engine.inspect() };
+      waiting: state === "starting" ? "audio-context-resume" : null, audio: engine?.inspect() ?? null };
   }
-  function stop(why = "replay-stop") { generation++; cancel(timer); timer = null; engine.stop(); state = "stopped"; reason = why; onChange(inspect()); }
+  function stop(why = "replay-stop") { generation++; cancel(timer); timer = null; engine?.stop(); state = "stopped"; reason = why; onChange(inspect()); }
   function advance() {
     const now = engine.inspect().currentTime;
     if ((now - start) * 1000 >= clip.durationMs) { stop("replay-ended"); return; }
@@ -29,11 +29,14 @@ export function createRecordingPlayback(clip, { context, onChange = () => {}, to
   return { inspect, stop, pause: stop,
     async play() {
       stop(); const request = ++generation; state = "starting"; onChange(inspect());
-      await engine.resume(); if (request !== generation) return;
+      engine ??= createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone });
+      try { await engine.resume(); }
+      catch (cause) { if (request === generation) stop("resume-failed"); throw cause; }
+      if (request !== generation) return;
       start = engine.inspect().currentTime + 0.05; next = 0; state = "playing"; reason = "replay-start";
       engine.setEndpoint(start + clip.durationMs / 1000);
       timer = every(advance, 25); advance();
     },
-    async dispose() { stop(); await engine.dispose(); },
+    async dispose() { stop(); await engine?.dispose(); },
   };
 }
