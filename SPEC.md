@@ -42,8 +42,31 @@ OfflineAudioContext (mono, 44,100 Hz) and PCM16 WAV encoding. Tone's offline wra
 advances its own clock; frame cleanup waits until rendering finishes. WAV length
 is the clip duration rounded up to the next sample, without an added release tail.
 The URL, an in-memory clip, and temporary download Blob URLs are the only outputs;
-there is no backend, audio hosting, or browser persistence. Recording/debug state
+there is no backend, audio hosting, or recording persistence. Recording/debug state
 is inspectable in the existing Debug panel and `window.marketMusic.inspect()`.
+
+## Mobile and shell cache contracts
+
+`main.js` owns foreground-only lifecycle handling. Hidden visibility or pagehide
+pauses historical playback and stops live/shared replay. Live Stop closes the
+socket, cancels retries/watchdogs, clears the delayed segment and finishes capture.
+Returning never auto-starts; the next Play/Start gesture resumes historical at its
+minute, restarts replay, or reconnects live with a fresh five-second buffer.
+Pending audio-start completions cannot undo Stop/Pause. Browser audio suspension
+detected by playback snapshots follows the same interruption path. Audio contexts
+are created lazily and resumed in the gesture path; a non-running resume is an error.
+
+`pwa.js` registers the root worker in secure contexts and exposes registration state
+through existing diagnostics. `sw.js` atomically precaches an explicit same-origin
+GET shell allowlist. The scoped entry URL maps to cached index.html; query variants
+and other requests remain network-only. Data files, live messages, recordings and
+exports never enter Cache Storage. Shared recording hashes are decoded in memory.
+Offline catalog failure is actionable and does not block shared replay or mode selection.
+
+Each deployment changing shell contents bumps the worker cache version. No
+skipWaiting/clients.claim: updates wait for old clients to close to avoid mixing
+versions. Activation deletes only obsolete `market-music-shell-` caches. Icons are
+generated from `scripts/generate-icons.py`; maskable artwork stays in the safe zone.
 
 ## Live crypto contracts
 

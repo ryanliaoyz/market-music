@@ -33,4 +33,11 @@
 - [x] Listeners can record a live session and download its audio as WAV.
 - [x] A share link replays the recorded prices with their captured timing.
 
+### M4: Mobile and light PWA (GRO-28)
+
+- [x] Touch controls fit narrow and landscape screens with safe-area spacing and first-tap audio.
+- [x] Backgrounding silences playback and disconnects Live; returning requires a tap without stale playback.
+- [x] The installable app opens its shell and shared recordings offline without caching market data.
+- [ ] Ryan verifies first-tap audio, background/lock recovery and installed/offline use on iOS Safari and Android Chrome using the [manual playback check](README.md#manual-playback-check-ryan).
+
 ## Later

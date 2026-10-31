@@ -170,7 +170,7 @@ test("pause, seek, speed change, and disposal invalidate a pending audio resume"
   for (const action of [p => p.pause(), p => p.seek(5), p => p.setSpeed(2), p => p.dispose()]) {
     const { context, playback, active } = setup();
     let resume;
-    context.resume = () => new Promise(resolve => { resume = resolve; });
+    context.resume = () => new Promise(resolve => { resume = () => { context.state = "running"; resolve(); }; });
     const pending = playback.play();
     assert.equal(playback.inspect().waiting, "audio-resume");
     await action(playback);

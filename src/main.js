@@ -10,6 +10,7 @@ import { createRecorder } from "./recording.js";
 import { encodeRecording, decodeRecording } from "./recording-codec.js";
 import { createRecordingPlayback } from "./recording-playback.js";
 import { renderWav } from "./wav.js";
+import { registerPwa } from "./pwa.js";
 
 const preset = document.getElementById("preset");
 for (const value of PRESETS) preset.add(new Option(value.label, value.id));
@@ -29,6 +30,29 @@ let playback = null;
 let selection = 0;
 let loading = true;
 let error = null;
+let resumeNeeded = false, lifecycleReason = "ready", pwa = null;
+function renderLifecycle() {
+  document.getElementById("lifecycle-debug").textContent = JSON.stringify({
+    visibility: document.visibilityState, resumeNeeded, reason: lifecycleReason, pwa,
+  }, null, 2);
+  if (resumeNeeded) status.textContent = `Playback interrupted (${lifecycleReason}). Tap ${mode.value === "live" ? "Start" : "Play"} to continue.`;
+}
+function interrupt(why) {
+  const snapshot = playback?.inspect();
+  if (!snapshot || !(snapshot.active || ["playing", "starting"].includes(snapshot.state))) return;
+  resumeNeeded = true; lifecycleReason = why;
+  feed?.stop();
+  if (snapshot.mode === "live") playback.stop();
+  else playback.pause();
+  renderLifecycle();
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) interrupt("background");
+  renderLifecycle();
+});
+window.addEventListener("pagehide", () => interrupt("page hidden"));
+window.addEventListener("pageshow", renderLifecycle);
+registerPwa(snapshot => { pwa = snapshot; renderLifecycle(); });
 const mode = document.getElementById("mode");
 const feedDebug = document.getElementById("feed-debug");
 let feed = null;
@@ -58,10 +82,16 @@ function renderRecording(snapshot = playback?.inspect()) {
 
 function showError(cause) {
   error = cause.message;
-  status.textContent = `Unable to play: ${error}. ${mode.value === "live" ? "Press Stop, then Start to retry." : "Try selecting the day again or pressing Play."}`;
+  status.textContent = navigator.onLine === false ? "Offline. Connect to load historical sessions or start Live; shared recording links can replay offline." :
+    `Unable to play: ${error}. ${mode.value === "live" ? "Press Stop, then Start to retry." : "Try selecting the day again or pressing Play."}`;
 }
 
 function render(snapshot) {
+  if (!resumeNeeded && ["playing", "buffering", "waiting"].includes(snapshot.state) &&
+      ["suspended", "interrupted"].includes(snapshot.audio?.contextState) && snapshot.waiting !== "audio-context-resume") {
+    interrupt("audio paused by browser"); return;
+  }
+  renderLifecycle();
   renderRecording(snapshot);
   visuals?.render(snapshot);
   debug?.render(snapshot);
@@ -69,7 +99,7 @@ function render(snapshot) {
   document.getElementById("preset-debug").textContent = `Selected: ${snapshot.presetId}; ${mapping?.presetId ?? "no audible preset"} · scale ${mapping?.scale?.join(", ") ?? "n/a"} · root ${mapping?.root ?? "n/a"} · ${mapping?.oscillator ?? "n/a"} · cutoff ${mapping?.cutoff ?? "n/a"} Hz`;
   if (snapshot.mode === "recording") {
     play.textContent = ["playing", "starting"].includes(snapshot.state) ? "Stop" : "Play";
-    status.textContent = `Shared recording · ${snapshot.state}`;
+    if (!resumeNeeded) status.textContent = `Shared recording · ${snapshot.state}`;
     return;
   }
   if (snapshot.mode === "live") {
@@ -79,7 +109,7 @@ function render(snapshot) {
       waiting: "Waiting for the first BTC-USD price…", buffering: "Buffering · 5 seconds…",
       playing: "Playing · 5 s delayed · BTC-USD · Coinbase", reconnecting: "Connection lost. Reconnecting to Coinbase…",
       error: `Live unavailable: ${snapshot.audioError ?? error ?? feed?.inspect().error ?? snapshot.reason}. Press Stop, then Start to retry.` };
-    status.textContent = messages[snapshot.state] ?? snapshot.state;
+    if (!resumeNeeded) status.textContent = messages[snapshot.state] ?? snapshot.state;
     if (feed) feedDebug.textContent = JSON.stringify({ ...feed.inspect(), retainedFrames: snapshot.frames.length,
       policy: snapshot.policy, references: snapshot.latest?.references ?? null,
       bufferedMs: snapshot.bufferedMs, queueSize: snapshot.queueSize, segmentId: snapshot.segmentId,
@@ -97,6 +127,7 @@ function render(snapshot) {
 
 window.marketMusic = {
   inspect: () => ({ mode: mode.value, feed: feed?.inspect() ?? null, selectedSession: day.value, loading, error, playback: playback?.inspect() ?? null,
+    lifecycle: { visibility: document.visibilityState, resumeNeeded, reason: lifecycleReason, pwa },
     visuals: visuals?.inspect() ?? null, debug: debug?.inspect() ?? null,
     recording: { ...recorder.inspect(playback?.inspect().audio?.currentTime), exporting, encodedSize }, sharedClip }),
 };
@@ -148,6 +179,7 @@ function configureMode(live) {
 }
 
 async function selectMode() {
+  resumeNeeded = false; lifecycleReason = "mode change";
   const request = ++selection;
   feed?.stop(); feed = null;
   const previous = playback;
@@ -193,6 +225,8 @@ async function selectMode() {
 mode.addEventListener("change", () => { selectMode().catch(showError); });
 
 play.addEventListener("click", async () => {
+  if (document.hidden) return;
+  resumeNeeded = false; lifecycleReason = "user gesture";
   const current = playback;
   const request = selection;
   try {
@@ -233,7 +267,10 @@ async function initialize() {
     day.addEventListener("change", () => selectDay(sessions));
     if (mode.value === "historical") await selectDay(sessions);
   } catch (cause) {
-    if (mode.value === "historical") { loading = false; showError(cause); }
+    if (mode.value === "historical") {
+      loading = false; showError(cause);
+      status.textContent = `Offline or unable to load historical sessions: ${cause.message}. Check your connection and reload; shared recording links can still replay.`;
+    }
   }
 }
 

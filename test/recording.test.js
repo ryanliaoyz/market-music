@@ -87,3 +87,15 @@ test("replay schedules captured mapping and stops at the clip boundary", async (
   assert.equal(replay.inspect().state, "stopped");
   await replay.dispose();
 });
+
+test("replay creates audio only on Play and a blocked unlock remains retryable", async () => {
+  const context = new AudioContext();
+  context.resume = async () => { context.state = "suspended"; };
+  const replay = createRecordingPlayback(clip, { context });
+  assert.equal(replay.inspect().audio, null);
+  assert.equal(context.nodes.length, 0);
+  await assert.rejects(replay.play(), /paused by the browser/);
+  assert.equal(replay.inspect().state, "stopped");
+  assert.equal(replay.inspect().reason, "resume-failed");
+  await replay.dispose();
+});

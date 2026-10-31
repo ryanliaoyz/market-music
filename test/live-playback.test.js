@@ -116,7 +116,7 @@ test("late timers skip expired audio without shifting the delay; queues and visi
 
 test("Stop cancels pending resume/buffer; restart creates a fresh session; errors propagate", async () => {
   const s = setup(); let resolve;
-  s.context.resume = () => new Promise(done => { resolve = done; });
+  s.context.resume = () => new Promise(done => { resolve = () => { s.context.state = "running"; done(); }; });
   const starting = s.player.start(); s.tick(); s.player.stop(); resolve(); await starting;
   s.player.accept({ price: 999, connectionId: 1 });
   assert.equal(s.player.inspect().state, "stopped"); assert.equal(s.player.inspect().newestReceived, null);
