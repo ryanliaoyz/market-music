@@ -4,6 +4,7 @@ class AudioParam {
   setValueAtTime(value, time) { this.events.push(["set", value, time]); }
   linearRampToValueAtTime(value, time) { this.events.push(["linear", value, time]); }
   exponentialRampToValueAtTime(value, time) { this.events.push(["exponential", value, time]); }
+  cancelScheduledValues(time) { this.events = this.events.filter(event => event[2] < time); }
 }
 
 class AudioNode {

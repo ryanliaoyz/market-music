@@ -6,7 +6,7 @@ export const DELAY_MS = 5000;
 const RETAINED_FRAMES = WINDOW_FRAMES + DELAY_MS / FRAME_MS + 2;
 
 export function createLivePlayback({ context, onChange = () => {}, onTick = () => {}, onFrame = () => {},
-  presetId = DEFAULT_PRESET_ID, tone, onSchedule = () => {}, onCancel = () => {},
+  presetId = DEFAULT_PRESET_ID, tone, onSchedule = () => {}, onCancel = () => {}, onBoundary = () => {},
   now = () => performance.now(), setInterval: every = globalThis.setInterval,
   clearInterval: cancel = globalThis.clearInterval } = {}) {
   getPreset(presetId);
@@ -32,6 +32,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
   }
   function notify() { onChange(inspect()); }
   function clearSegment(why) {
+    onBoundary(engine?.inspect().currentTime ?? 0, why);
     for (const item of scheduled) if (item.when > engine.inspect().currentTime) onCancel(item.frame.scheduleId);
     engine?.stop(); features = createLiveFeatures();
     origin = null; frames = []; pending.clear(); built = -1; nextAudio = 0;
@@ -61,6 +62,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     const cursor = time - origin - DELAY_MS;
     if (audioReady && cursor >= 0 && state !== "error") state = "playing";
     if (!audioReady || engine.inspect().contextState !== "running") {
+      onBoundary(engine.inspect().currentTime, "audio-suspended");
       for (const item of scheduled) onCancel(item.frame.scheduleId);
       engine?.stop(); audible = null; scheduled = [];
       nextAudio = Math.max(nextAudio, Math.floor(cursor / FRAME_MS) + 1);
