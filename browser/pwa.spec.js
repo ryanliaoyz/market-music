@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { encodeRecording } from "../src/recording-codec.js";
@@ -20,14 +20,14 @@ test("manifest, icons and shell-only offline launch including shared replay", as
   await page.reload();
   expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   const entries = await page.evaluate(async () => {
-    const cache = await caches.open("market-music-shell-v3");
+    const cache = await caches.open("market-music-shell-v4");
     return (await cache.keys()).map(request => new URL(request.url).pathname);
   });
   expect(entries).toContain("/src/main.js");
   expect(entries.some(path => path.startsWith("/data/"))).toBe(false);
   expect(await page.evaluate(async () => {
     await fetch("/data/sessions.json");
-    return (await (await caches.open("market-music-shell-v3")).keys()).length;
+    return (await (await caches.open("market-music-shell-v4")).keys()).length;
   })).toBe(entries.length);
   await context.setOffline(true);
   await page.reload();
@@ -64,15 +64,20 @@ test("new shell waits for old clients and activation removes only app-owned old 
       await caches.open("unrelated-cache");
     });
     await page.reload();
-    worker = source.replace("}v3`", "}v4`");
+    worker = source.replace("}v4`", "}v5`");
+    const replacementReady = context.waitForEvent("serviceworker");
     await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
+    const replacement = await replacementReady;
     await expect.poll(() => page.evaluate(async () => Boolean((await navigator.serviceWorker.getRegistration()).waiting))).toBe(true);
     expect(await page.evaluate(() => navigator.serviceWorker.controller.state)).toBe("activated");
     const next = await context.newPage();
     await page.close();
+    // Let activation finish before navigation can become another old-worker client.
+    await expect.poll(() => replacement.evaluate(() =>
+      !self.registration.waiting && self.registration.active?.state === "activated")).toBe(true);
     await next.goto(url);
-    await expect.poll(() => next.evaluate(() => caches.keys())).toEqual(expect.arrayContaining(["market-music-shell-v4", "unrelated-cache"]));
-    expect(await next.evaluate(() => caches.keys())).not.toContain("market-music-shell-v3");
+    await expect.poll(() => next.evaluate(() => caches.keys())).toEqual(expect.arrayContaining(["market-music-shell-v5", "unrelated-cache"]));
+    expect(await next.evaluate(() => caches.keys())).not.toContain("market-music-shell-v4");
     expect(await next.evaluate(() => caches.keys())).not.toContain("market-music-shell-obsolete");
   } finally {
     server.closeAllConnections();

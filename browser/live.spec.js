@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 
 const inspect = page => page.evaluate(() => window.marketMusic.inspect());
 const message = (sequence, price) => ({ channel: "ticker", sequence_num: sequence,
@@ -28,7 +28,7 @@ async function setup(page, { catalogFailure = false, clock = true } = {}) {
       timer.unref(); page.on("close", () => clearInterval(timer));
     }
   });
-  if (catalogFailure) await page.route("**/catalog.json", route => route.fulfill({ status: 503, body: "unavailable" }));
+  if (catalogFailure) await page.route("**/sessions.json", route => route.fulfill({ status: 503, body: "unavailable" }));
   await page.goto("/");
   await page.getByLabel("Mode", { exact: true }).selectOption("live");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
@@ -49,14 +49,17 @@ async function setup(page, { catalogFailure = false, clock = true } = {}) {
 }
 
 test("Start subscribes, buffers five seconds, and renders only delayed prices; Stop unsubscribes", async ({ page }) => {
-  const mock = await setup(page); await mock.start();
+  const mock = await setup(page);
+  await page.getByLabel("Volume", { exact: true }).fill("40");
+  await mock.start();
+  expect((await inspect(page)).playback.audio.bus.volume).toBe(0.4);
   await expect.poll(() => mock.subscriptions.length).toBe(3);
   expect(mock.subscriptions).toEqual([{ type: "subscribe", channel: "ticker", product_ids: ["BTC-USD"] },
     { type: "subscribe", channel: "market_trades", product_ids: ["BTC-USD"] },
     { type: "subscribe", channel: "heartbeats" }]);
   await expect(page.getByLabel("Mode", { exact: true })).toBeDisabled();
   await expect(page.getByLabel("Speed")).toBeHidden();
-  await expect(page.getByRole("slider")).toBeHidden();
+  await expect(page.getByRole("slider", { name: "Session time (New York)" })).toBeHidden();
   mock.send(0, 100); await expect(page.locator("#status")).toContainText("Buffering");
   await mock.advance(1000); mock.send(1, 110);
   await mock.advance(3900);
@@ -64,6 +67,8 @@ test("Start subscribes, buffers five seconds, and renders only delayed prices; S
   await expect(page.locator("#status")).toContainText("Buffering");
   await mock.advance(100);
   await expect(page.locator("#status")).toContainText("5 s delayed");
+  await page.getByLabel("Volume", { exact: true }).fill("20");
+  expect((await inspect(page)).playback.audio.bus.volume).toBe(0.2);
   expect((await inspect(page)).visuals.close).toBe(100);
   expect(mock.sockets).toHaveLength(1); expect(mock.closed).toHaveLength(0);
   await page.getByRole("button", { name: "Stop", exact: true }).click();
@@ -76,6 +81,9 @@ test("Start subscribes, buffers five seconds, and renders only delayed prices; S
   await page.getByLabel("Mode", { exact: true }).selectOption("historical");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   expect((await inspect(page)).playback.audio).toBeNull();
+  await page.locator("#play").click();
+  expect((await inspect(page)).playback.audio.bus.volume).toBe(0.2);
+  await page.locator("#play").click();
   expect(mock.errors).toEqual([]);
 });
 
@@ -134,7 +142,9 @@ test("network drops reconnect and refill; quiet markets keep the socket open", a
 test("subscription error leaves Stop available; restart recovers despite catalog failure", async ({ page }) => {
   const mock = await setup(page, { catalogFailure: true }); await mock.start();
   mock.sockets[0].send(JSON.stringify({ type: "error", message: "Subscription unavailable" }));
-  await expect(page.locator("#status")).toContainText("Subscription unavailable");
+  await expect(page.locator("#status")).toHaveText("Live unavailable. Press Stop, then Start to retry.");
+  await page.getByText("Debug panel", { exact: true }).click();
+  await expect(page.locator("#feed-debug")).toContainText("Subscription unavailable");
   expect(mock.closed).toHaveLength(0);
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   await mock.start(); mock.send(0, 200);

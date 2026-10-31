@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 
 for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }, { width: 1280, height: 800 }]) {
   for (const font of ["default", "monospace"]) {
@@ -6,7 +6,7 @@ for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }
       await page.setViewportSize(viewport);
       await page.goto("/");
       if (font === "monospace") {
-        await page.addStyleTag({ content: ".chart-labels { font-family: monospace; }" });
+        await page.locator(".chart-labels").evaluate(node => { node.style.fontFamily = "monospace"; });
       }
       await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
       const startBox = await page.locator("#play").boundingBox();
@@ -26,14 +26,14 @@ for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }
         expect(box.x + box.width).toBeLessThanOrEqual(chart.x + chart.width);
       }
       for (const control of [page.getByLabel("Mode", { exact: true }), page.getByLabel("Trading day"), page.getByRole("button", { name: "Start", exact: true }),
-        page.getByLabel("Speed"), page.getByRole("slider"), page.locator("#debug summary"), ...await page.getByRole("radio").all()]) {
+        page.getByLabel("Speed"), page.getByLabel("Volume", { exact: true }), page.getByRole("slider", { name: "Session time (New York)" }), page.locator("#debug summary"), ...await page.getByRole("radio").all()]) {
         const box = await control.boundingBox();
         expect(box.height).toBeGreaterThanOrEqual(44);
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
       }
-      await page.getByRole("slider").fill("100");
-      await expect(page.getByRole("slider")).toHaveAttribute("aria-valuetext", "11:10");
+      await page.getByRole("slider", { name: "Session time (New York)" }).fill("100");
+      await expect(page.getByRole("slider", { name: "Session time (New York)" })).toHaveAttribute("aria-valuetext", "11:10");
       await expect(page.locator("#time")).toHaveText("11:10");
     });
   }
@@ -43,7 +43,7 @@ test("keyboard navigation has visible focus and operates playback controls", asy
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   const controls = [page.getByLabel("Mode", { exact: true }), page.getByLabel("Trading day"), page.getByRole("button", { name: "Start", exact: true }),
-    page.getByRole("radio", { name: "Classic", exact: true }), page.getByLabel("Speed"), page.getByRole("slider"), page.locator("#debug summary")];
+    page.getByRole("radio", { name: "Classic", exact: true }), page.getByLabel("Volume", { exact: true }), page.getByLabel("Speed"), page.getByRole("slider", { name: "Session time (New York)" }), page.locator("#debug summary")];
   for (const control of controls) {
     await page.keyboard.press("Tab");
     await expect(control).toBeFocused();
@@ -79,7 +79,7 @@ test("preset cards retain selection across days and modes with Debug closed", as
   await page.getByLabel("Mode", { exact: true }).selectOption("live");
   await expect(page.getByRole("radio", { name: "Plucky", exact: true })).toBeChecked();
   await expect.poll(() => page.evaluate(() => window.marketMusic.inspect().playback.presetId)).toBe("plucky-v2");
-  await expect(page.getByRole("slider")).toBeHidden();
+  await expect(page.getByRole("slider", { name: "Session time (New York)" })).toBeHidden();
   await expect(page.getByRole("button", { name: "Record", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Download WAV" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Copy link" })).toBeVisible();
@@ -95,7 +95,7 @@ test("full-screen scene follows cursor intensity and Start/Stop reflects playbac
   const viewport = page.viewportSize();
   expect(await page.locator("#scene").boundingBox()).toEqual({ x: 0, y: 0, ...viewport });
   const before = await page.locator("#scene").evaluate(node => node.style.getPropertyValue("--scene-hue"));
-  await page.getByRole("slider").fill("100");
+  await page.getByRole("slider", { name: "Session time (New York)" }).fill("100");
   const after = await page.locator("#scene").evaluate(node => node.style.getPropertyValue("--scene-hue"));
   expect(after).not.toBe(before);
   await expect(page.locator(".aurora")).toHaveCSS("transition-duration", "0s");

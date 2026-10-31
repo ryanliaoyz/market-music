@@ -5,7 +5,7 @@ export const DEFAULT_SPEED = 1.625;
 export const SPEEDS = [0.5, 1, DEFAULT_SPEED, 2, 4];
 
 export function createPlayback(features, {
-  context, presetId = DEFAULT_PRESET_ID, tone, setInterval: repeat = globalThis.setInterval,
+  context, presetId = DEFAULT_PRESET_ID, volume = 1, tone, setInterval: repeat = globalThis.setInterval,
   clearInterval: cancel = globalThis.clearInterval, onChange = () => {},
 } = {}) {
   getPreset(presetId);
@@ -80,11 +80,12 @@ export function createPlayback(features, {
   }
   return {
     inspect,
+    setVolume(value) { volume = value; engine?.setVolume(value); notify(); },
     async play() {
       if (state === "disposed") throw new Error("Playback is disposed");
       if (state === "playing" || state === "starting") return;
       if (state === "ended") minute = 0;
-      engine ??= createSoundEngine(features, { context, presetId, tone });
+      engine ??= createSoundEngine(features, { context, presetId, tone, volume });
       const request = ++generation;
       state = "starting";
       reason = "play-requested";

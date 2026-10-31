@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' wss://advanced-trade-ws.coinbase.com; img-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#080c10">
   <link rel="manifest" href="manifest.webmanifest">
@@ -25,6 +26,7 @@
         <select id="day" aria-describedby="status" disabled></select>
       </div>
       <p id="live-product" hidden><span class="live-dot" aria-hidden="true"></span>BTC-USD <span>Coinbase · 5 s delayed</span></p>
+      <p id="replay-product" hidden>shared clip · unverified</p>
     </div>
     <section class="listening-space" aria-label="Listening stage">
       <div class="listening-copy">
@@ -61,6 +63,8 @@
         <p id="status" role="status">Loading…</p>
       </div>
       <fieldset id="preset"><legend>Choose your sound</legend><div id="preset-cards"></div></fieldset>
+      <label for="volume">Volume</label>
+      <input id="volume" type="range" min="0" max="100" step="1" value="100">
       <div class="historical-tools">
         <div class="speed-control" id="historical-speed">
           <label for="speed">Speed</label>
@@ -107,6 +111,7 @@
         <dt>Last transition</dt><dd data-debug="reason"></dd>
       </dl>
       <pre id="feed-debug" hidden></pre>
+      <pre id="audio-debug"></pre>
       <pre id="recording-debug"></pre>
       <pre id="lifecycle-debug"></pre>
     </details>

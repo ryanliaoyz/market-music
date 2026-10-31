@@ -68,6 +68,11 @@ Tone.js 15.1.22 is served locally, with no build or runtime CDN dependency:
 345,500 bytes raw, about 80 KB gzip. See [vendor provenance and license](vendor/README.md).
 All sounds are synthesized; no sample assets are used.
 
+**Volume** controls listening in every mode, from mute to unity gain, and stays selected
+until the page reloads. It does not change recording data or WAV export volume.
+All audio passes through a shared compressor, approximately 14 kHz lowpass and
+−1 dBFS sample-peak ceiling before the volume control.
+
 ### Live crypto
 
 Select **Live crypto · BTC-USD**, then **Start**. The connection opens only on Start;
@@ -106,7 +111,9 @@ copies it when clipboard access is available. Its versioned hash contains the
 recording, capped at 4 KiB. Opening a link loads a paused replay; press **Start** to
 hear it. New clips use `#recording=v2.` to retain resolved chords, rhythm and accents;
 existing `#recording=v1.` links keep their original sound. Captured presets are fixed
-during replay. Replay needs no exchange access.
+during replay. Replay needs no exchange access. Shared links show **shared clip · unverified**:
+their prices are supplied by the link, not verified Coinbase history. Valid v1/v2
+encoder output remains supported; crafted notes outside those mappings are rejected.
 Reloading loses an unshared live recording; save the WAV or link first.
 
 ### Diagnostics
@@ -127,6 +134,9 @@ the audible cursor; the chart and panel follow the cursor. See
 In live mode Debug separates the newest received price from the delayed mapping.
 Recording diagnostics show state, frame/pending counts, duration, encoded size,
 export activity, and replay progress through the panel and `window.marketMusic.inspect()`.
+Audio diagnostics include master volume, lowpass and peak-ceiling configuration.
+Live errors use fixed retry instructions; provider error text is retained only in Debug
+and the console inspection surface.
 It also distinguishes the selected preset from the audible frame's captured preset,
 with scale, register, oscillator, filter cutoff and distortion diagnostics.
 It exposes connection/error/retry state, tick/heartbeat ages, buffer duration, queue
@@ -147,6 +157,9 @@ prices on the main chart.
   the displayed minute, and the end must stay silent until replayed.
 - Listen on speakers/headphones for calm-to-distorted timbre, harmony, drone, and
   event hits; automated checks cannot assess audible quality.
+- Adjust Volume during historical, Live and shared replay, including mute, and listen
+  for clicks or harsh limiting. Download a WAV while muted: it should still contain
+  the clip at the fixed export level. Reload to restore full listening volume.
 - Select each sound preset before Start and during playback. Check historical
   minute restart, live next-frame switching without new buffering, and Debug's
   selected versus audible preset. Stop must silence all voices and tails.
@@ -238,6 +251,11 @@ and root `sw.js`. Serve `sw.js` with revalidation rather than immutable caching.
 Live traffic goes directly to `wss://advanced-trade-ws.coinbase.com`; no Vercel
 functions, API keys, or proxy are needed.
 
+The early meta CSP in `index.html` permits only the local shell, Tone's blob workers
+and Coinbase's WebSocket. `vercel.json` adds framing protection, MIME sniffing and
+referrer restrictions, permissions policy, same-origin opener isolation and entry/worker
+revalidation. The local Python server enforces the meta CSP but does not apply Vercel headers.
+
 ### Post-deploy checklist
 
 On the production HTTPS URL, after confirming Vercel deployed the intended `main`
@@ -245,6 +263,9 @@ commit and its CI passed:
 
 - Verify modules, historical data, `manifest.webmanifest`, and its icons load.
   Confirm the manifest's start URL/scope cover the app and display is standalone.
+- Inspect HTTPS response headers against `vercel.json`, and confirm embedding the
+  page in another site's iframe is blocked. Check the browser console for CSP errors
+  while using Tone presets, Live, replay and WAV download.
 - In browser developer tools, confirm the root service worker registers without
   errors and caches only the shell. Check `sw.js` revalidation and, when an update
   is waiting, close all app tabs/windows and reopen to use the new version.

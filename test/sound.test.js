@@ -61,10 +61,10 @@ test("Web Audio graph schedules timbre, envelopes, drone, and crash at audio-clo
   assert.deepEqual(oscillators.map(node => node.type), ["sawtooth", "sawtooth", "sine"]);
   assert.deepEqual(oscillators[0].frequency.events, [["set", mapping.frequency, 11]]);
   assert.deepEqual(oscillators[0].stops, [11.36]);
-  const filter = context.nodes.find(node => node.kind === "filter");
+  const filter = context.nodes.find(node => node.kind === "filter" && node.frequency.value !== 14000);
   assert.equal(filter.type, "lowpass");
   assert.deepEqual(filter.frequency.events, [["set", 8000, 11]]);
-  const shaper = context.nodes.find(node => node.kind === "shaper");
+  const shaper = context.nodes.find(node => node.kind === "shaper" && node.curve.length === 1025);
   assert.equal(shaper.curve[512], 0);
   assert.equal(shaper.curve[1024], 1);
   assert.ok(shaper.curve[768] > 0.99);
@@ -85,7 +85,7 @@ test("Web Audio graph schedules timbre, envelopes, drone, and crash at audio-clo
   assert.equal(engine.inspect().activeVoices, 0);
   assert.equal(engine.inspect().droneActive, false);
   assert.equal(engine.inspect().lastScheduled, null);
-  assert.ok(context.nodes.filter(node => node.kind !== "compressor").slice(1).every(node => node.connections.length === 0));
+  assert.ok(context.nodes.slice(5).every(node => node.connections.length === 0));
   engine.playBar(1);
   assert.ok(engine.inspect().activeVoices > 0);
   await engine.dispose();
@@ -103,7 +103,7 @@ test("opening gong, spike bell, and clean triangle use distinct synthesized voic
   engine.playBar(0);
   assert.equal(engine.inspect().activeVoices, 4);
   assert.deepEqual(context.nodes.filter(node => node.kind === "oscillator").slice(1).map(node => node.frequency.events[0][1]), [130.81, 181.83, 275.61]);
-  const clean = context.nodes.find(node => node.kind === "shaper");
+  const clean = context.nodes.find(node => node.kind === "shaper" && node.curve.length === 1025);
   assert.equal(clean.curve[768], 0.5);
   engine.stop();
   engine.playBar(1);

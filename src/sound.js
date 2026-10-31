@@ -59,15 +59,29 @@ function distortionCurve(drive) {
   });
 }
 
-export function createSoundEngine(features, { context: suppliedContext, presetId = DEFAULT_PRESET_ID, tone: toneLibrary = globalThis.Tone } = {}) {
+export function createSoundEngine(features, { context: suppliedContext, presetId = DEFAULT_PRESET_ID, volume = 1, tone: toneLibrary = globalThis.Tone } = {}) {
   const context = suppliedContext ?? new globalThis.AudioContext();
   let score = createSoundScore(features, { presetId });
   let toneVoices = null;
   const master = context.createGain();
   master.gain.value = 0.6;
   const compressor = context.createDynamicsCompressor();
+  const lowpass = context.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = 14000;
+  lowpass.Q.value = Math.SQRT1_2;
+  const ceiling = context.createWaveShaper();
+  // A compressor threshold is not a peak ceiling. Leave headroom for Float32/PCM16 rounding.
+  const peak = 10 ** (-1 / 20) - 0.00004;
+  ceiling.curve = Float32Array.from({ length: 4097 }, (_, i) => Math.max(-peak, Math.min(peak, i / 2048 - 1)));
+  ceiling.oversample = "none";
+  const output = context.createGain();
+  output.gain.value = volume;
   master.connect(compressor);
-  compressor.connect(context.destination);
+  compressor.connect(lowpass);
+  lowpass.connect(ceiling);
+  ceiling.connect(output);
+  output.connect(context.destination);
   const voices = new Set();
   let drone = null;
   let last = null;
@@ -201,6 +215,13 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
 
   return {
     get score() { return score; },
+    setVolume(value) {
+      assertOpen();
+      volume = value;
+      output.gain.cancelScheduledValues(context.currentTime);
+      output.gain.setValueAtTime(output.gain.value, context.currentTime);
+      output.gain.linearRampToValueAtTime(volume, context.currentTime + 0.02);
+    },
     setPreset(id) { assertOpen(); getPreset(id); stop(); score = createSoundScore(features, { presetId: id }); },
     cancelScheduled(time) {
       toneVoices?.cancelFrom(time);
@@ -248,12 +269,16 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
       toneVoices?.dispose();
       master.disconnect();
       compressor.disconnect();
+      lowpass.disconnect();
+      ceiling.disconnect();
+      output.disconnect();
       disposed = true;
       if (!suppliedContext) await context.close();
     },
     inspect() {
       return {
         currentTime: context.currentTime, contextState: context.state, waiting, disposed,
+        bus: { volume, lowpassHz: 14000, ceilingDbfs: -1, ceiling: peak },
         activeVoices: voices.size, droneActive: drone !== null,
         ...toneVoices?.inspect(),
         lastScheduled: last === null ? null : { ...last, rules: [...last.rules] },

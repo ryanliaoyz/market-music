@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 
 const inspect = page => page.evaluate(() => window.marketMusic.inspect());
 const field = (page, name) => page.locator(`[data-debug="${name}"]`);
@@ -32,7 +32,7 @@ test("bundled session loads paused and debug previews follow keyboard seeking", 
   await expect(field(page, "rules")).toContainText("opening-gong");
   expect((await inspect(page)).playback.audio).toBeNull();
 
-  const slider = page.getByRole("slider");
+  const slider = page.getByRole("slider", { name: "Session time (New York)" });
   await slider.focus();
   await slider.press("ArrowRight");
   await expect(slider).toHaveAttribute("aria-valuetext", "09:31");
@@ -68,7 +68,7 @@ test("real audio advances, pauses, resumes, seeks and changes speed", async ({ p
   expect((await inspect(page)).playback.audio.activeVoices).toBe(0);
 
   await seek(page, 100);
-  await expect(page.getByRole("slider")).toHaveAttribute("aria-valuetext", "11:10");
+  await expect(page.getByRole("slider", { name: "Session time (New York)" })).toHaveAttribute("aria-valuetext", "11:10");
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect.poll(async () => (await inspect(page)).playback.minute).toBeGreaterThan(100);
   await page.getByLabel("Speed").selectOption("0.5");
@@ -184,7 +184,8 @@ test("switching sessions during playback hides stale values and loads paused", a
 test("failed session fetch shows an actionable error and another day recovers", async ({ page }) => {
   await page.route("**/NVDA-2025-01-27.csv", route => route.fulfill({ status: 503, body: "Unavailable" }));
   await page.getByLabel("Trading day").selectOption("NVDA-2025-01-27");
-  await expect(page.locator("#status")).toContainText("HTTP 503");
+  await expect(page.locator("#status")).toHaveText("Unable to play. Try selecting the day again or pressing Start.");
+  expect(await page.evaluate(() => window.marketMusic.inspect().error)).toContain("HTTP 503");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeDisabled();
   await expect(page.locator("#debug")).toBeHidden();
   await expect(page.locator("#chart")).toBeHidden();

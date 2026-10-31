@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures.js";
 import { readFile } from "node:fs/promises";
 import { encodeRecording } from "../src/recording-codec.js";
 
@@ -73,21 +73,25 @@ for (const version of [1, 2]) test(`v${version} shared links replay and render e
   await page.goto("/");
   const hash = await page.evaluate(async version => {
     const { encodeRecording } = await import("/src/recording-codec.js");
+    const { LIVE_PRESETS } = await import("/src/presets.js");
+    const { musicalMapping } = await import("/src/live-music.js");
     return encodeRecording({ durationMs: 2400, frames: ["classic", "ambient", "plucky", "bass-heavy"].map((name, n) =>
-      ({ offsetMs: n * 500, price: 100 + n, presetId: `${name}-v${version}`, note: 60,
-        harmony: version === 1 ? 64 : 48, intensity: version === 1 ? 0.5 : 1,
-        event: n === 2 ? "spike" : null, ...(version === 2 ? { chord: [48, 51, 55], mask: 1, accent: 3 } : {}) })) });
+      ({ ...(version === 2 ? musicalMapping({ degree: 7, chordDegree: 0, tradeRate: 0, accent: 3 }, LIVE_PRESETS[n].id) : {}),
+        offsetMs: n * 500, price: 100 + n, presetId: `${name}-v${version}`, ...(version === 1 ? { note: 60,
+        harmony: 64, intensity: 0.5 } : {}), event: n === 2 ? "spike" : null })) });
   }, version);
   let sockets = 0; page.on("websocket", () => sockets++);
   await page.goto("/" + hash);
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   await context.setOffline(true);
+  await page.getByLabel("Volume", { exact: true }).fill("0");
   const downloaded = page.waitForEvent("download"); await page.getByRole("button", { name: "Download WAV" }).click();
   const download = await downloaded; expect(await download.failure()).toBeNull();
   const bytes = await readFile(await download.path());
   for (let n = 0; n < 4; n++) expect(bytes.subarray(44 + n * 44100, 44 + (n + 1) * 44100).some(value => value !== 0)).toBe(true);
   await expect.poll(async () => (await inspect(page)).recording.exporting).toBe(false);
   await expect(page.locator("#recording-error")).toBeEmpty();
+  await page.getByLabel("Volume", { exact: true }).fill("100");
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect.poll(async () => (await inspect(page)).playback.audio.lastScheduled?.presetId).toBe(`ambient-v${version}`);
   await expect(page.getByRole("radio", { name: "Ambient", exact: true })).toBeChecked();

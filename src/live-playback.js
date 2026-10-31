@@ -7,7 +7,7 @@ export const DELAY_MS = 5000;
 const RETAINED_FRAMES = WINDOW_FRAMES + DELAY_MS / FRAME_MS + 2;
 
 export function createLivePlayback({ context, onChange = () => {}, onTick = () => {}, onFrame = () => {},
-  presetId = "classic-v2", tone, onSchedule = () => {}, onCancel = () => {}, onBoundary = () => {},
+  presetId = "classic-v2", volume = 1, tone, onSchedule = () => {}, onCancel = () => {}, onBoundary = () => {},
   now = () => performance.now(), setInterval: every = globalThis.setInterval,
   clearInterval: cancel = globalThis.clearInterval } = {}) {
   getPreset(presetId);
@@ -101,6 +101,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     notify();
   }
   return {
+    setVolume(value) { volume = value; engine?.setVolume(value); notify(); },
     acceptTrade(trade) {
       if (!active || disposed || origin === null || connectionId !== trade.connectionId) return;
       const slot = Math.max(built + 1, Math.ceil((now() - origin) / FRAME_MS));
@@ -162,7 +163,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       const request = ++generation;
       active = true; audioReady = false; audioError = null; state = "starting"; sessionStart = now();
       connectionId = null; newestReceived = null; segmentId = 0; clearSegment("start");
-      engine ??= createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone });
+      engine ??= createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone, volume });
       timer = every(advance, 25); notify();
       try { await engine.resume(); }
       catch (cause) {
