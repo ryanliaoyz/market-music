@@ -5,7 +5,7 @@
 ### M7: Browser tests and deploy
 
 - [ ] Ryan verifies audible quality on speakers/headphones with the [manual playback check](README.md#manual-playback-check-ryan).
-- [ ] Ryan imports the site into hosting and verifies playback on the deployed HTTPS URL using the [deployment guide](README.md#deploy).
+- [ ] Ryan verifies playback on the production HTTPS URL using the [deployment guide](README.md#deploy).
 
 ### M8: Handoff
 
@@ -39,5 +39,11 @@
 - [x] Backgrounding silences playback and disconnects Live; returning requires a tap without stale playback.
 - [x] The installable app opens its shell and shared recordings offline without caching market data.
 - [ ] Ryan verifies first-tap audio, background/lock recovery and installed/offline use on iOS Safari and Android Chrome using the [manual playback check](README.md#manual-playback-check-ryan).
+
+### M5: v2 release (GRO-30)
+
+- [x] The production URL and automatic `main` → Vercel deployment path are confirmed in the [deployment guide](README.md#deploy).
+- [x] README usage covers live mode, presets, recording, share replay, WAV download, and home-screen installation; SPEC clarifies the runtime boundary and [v2 release notes](CHANGELOG.md) describe the shipped features and limits.
+- [ ] Production passes the [post-deploy checklist](README.md#post-deploy-checklist), including the outstanding M1 live and M4 mobile checks; v2 release notes are dated when acceptance is complete.
 
 ## Later

@@ -209,22 +209,49 @@ Finish with `await engine.dispose(); button.remove();`. See the
 
 ## Deploy
 
-Every pull request and push to `main` runs both test suites. Ryan's hosting import
-and deployed playback check are [pending](TODO.md#m7-browser-tests-and-deploy).
+Production is [market-music.vercel.app](https://market-music.vercel.app).
+Vercel's Git integration creates previews and automatically deploys `main` to
+production; there is no manual deploy step. GitHub CI runs both test suites on
+pull requests and pushes to `main`. Check CI and Vercel separately; a successful
+deployment alone does not establish that tests passed.
 
-1. Import into Vercel with the **Other** framework preset, an empty build command,
-   and output directory `.`. Serving requires no install step or environment variables.
-2. Serve `index.html`, `src/`, `data/`, `vendor/`, `manifest.webmanifest`, `icons/`,
-   and root `sw.js` with relative paths preserved. Any static host supporting
-   JavaScript modules and JSON/CSV works. Serve `sw.js` with revalidation rather
-   than immutable caching; keep it at the app root for the correct scope.
-3. Open the deployed HTTPS URL, confirm data loads and Play enables audio, and run
-   the [manual playback check](#manual-playback-check-ryan), including both symbols
-   and Debug. Also verify Live Start/Stop and Coinbase connectivity. Live traffic
-   goes directly from the browser to `wss://advanced-trade-ws.coinbase.com`; no
-   Vercel functions, API keys, or proxy are needed.
+The site is static: **Other** framework preset, empty build command, output
+directory `.`, no install step or environment variables required. Preserve relative
+paths for `index.html`, `src/`, `data/`, `vendor/`, `manifest.webmanifest`, `icons/`,
+and root `sw.js`. Serve `sw.js` with revalidation rather than immutable caching.
+Live traffic goes directly to `wss://advanced-trade-ws.coinbase.com`; no Vercel
+functions, API keys, or proxy are needed.
+
+### Post-deploy checklist
+
+On the production HTTPS URL, after confirming Vercel deployed the intended `main`
+commit and its CI passed:
+
+- Verify modules, historical data, `manifest.webmanifest`, and its icons load.
+  Confirm the manifest's start URL/scope cover the app and display is standalone.
+- In browser developer tools, confirm the root service worker registers without
+  errors and caches only the shell. Check `sw.js` revalidation and, when an update
+  is waiting, close all app tabs/windows and reopen to use the new version.
+- Run the [manual playback check](#manual-playback-check-ryan): historical SPY/NVDA,
+  presets, real Coinbase Start/Stop and reconnect, and audible quality.
+- Record while changing presets, download and listen to the WAV, and open the copied
+  link in a fresh tab. Play must replay the captured clip without a live connection.
+- On iOS Safari and Android Chrome, check installation, first-tap audio,
+  background/lock recovery, and offline shell/shared replay after an online visit.
+  Historical data and Live still require connectivity.
+
+Keep the [release acceptance items](TODO.md#m5-v2-release-gro-30) open until checked
+on production; Chromium tests with a mocked feed do not replace these checks.
 
 ## Mobile and offline use
+
+To install from [production](https://market-music.vercel.app):
+
+- **iOS Safari:** open **Share → Add to Home Screen → Add**.
+- **Android Chrome:** open the browser menu, choose **Install app** or
+  **Add to Home screen** (wording varies), and confirm.
+
+Open the home-screen icon once online to cache the shell before trying offline use.
 
 Playback is foreground-only. Hiding the page pauses historical playback at its
 current minute and stops live/shared replay, finishing any active recording.
@@ -264,7 +291,8 @@ shell assets, bump the cache version in `sw.js` and keep its explicit list compl
 ## Remaining handoff
 
 Ryan owns [manual listening and deployed checks](TODO.md#m7-browser-tests-and-deploy)
-and [credential/bot cleanup](TODO.md#m8-handoff). The static site needs none of
+and [v2 release acceptance](TODO.md#m5-v2-release-gro-30), plus
+[credential/bot cleanup](TODO.md#m8-handoff). The static site needs none of
 those credentials or bot jobs. Keep `.github/workflows/ci.yml`: it is the normal
 test workflow and requires no bot token.
 
