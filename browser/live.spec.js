@@ -74,7 +74,7 @@ test("Start subscribes, buffers five seconds, and renders only delayed prices; S
   expect((await inspect(page)).playback.frames).toEqual([]);
   await expect(page.getByLabel("Mode", { exact: true })).toBeEnabled();
   await page.getByLabel("Mode", { exact: true }).selectOption("historical");
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   expect((await inspect(page)).playback.audio).toBeNull();
   expect(mock.errors).toEqual([]);
 });
@@ -98,10 +98,10 @@ test("real Web Audio and the debug/chart mapping follow the delayed frame", asyn
 
 test("live Tone selection changes the next audible frame while buffered prices retain their deadlines", async ({ page }) => {
   const mock = await setup(page, { clock: false });
-  await page.getByLabel("Sound preset").selectOption("ambient-v2");
+  await page.getByRole("radio", { name: "Ambient", exact: true }).check();
   await mock.start(); mock.send(0, 100);
   await page.waitForTimeout(500); mock.send(1, 110);
-  await page.getByLabel("Sound preset").selectOption("bass-heavy-v2");
+  await page.getByRole("radio", { name: "Bass-heavy", exact: true }).check();
   await expect.poll(async () => (await inspect(page)).playback.audible?.mapping.presetId,
     { intervals: [25], timeout: 8000 }).toBe("bass-heavy-v2");
   const state = await inspect(page);

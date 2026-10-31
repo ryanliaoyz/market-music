@@ -3,30 +3,65 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0b0d12">
+  <meta name="theme-color" content="#080c10">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
   <title>Market as Music</title>
   <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
+  <div id="scene" aria-hidden="true"><div class="aurora"></div></div>
   <header>
-    <h1>Market as Music</h1>
-    <p class="intro">Hear a trading day unfold.</p>
+    <div class="brand"><span class="brand-mark" aria-hidden="true">∿</span><h1>Market as Music</h1></div>
+    <p class="intro">PRICE INTO SOUND</p>
   </header>
   <main>
-    <label for="mode">Mode</label>
-    <select id="mode"><option value="historical">Historical</option><option value="live">Live crypto · BTC-USD</option><option value="recording" disabled>Shared recording</option></select>
-    <div id="historical-source">
-      <label for="day">Trading day</label>
-      <select id="day" aria-describedby="status" disabled></select>
+    <div class="source-controls">
+      <div><label for="mode">Mode</label>
+        <select id="mode"><option value="historical">Historical</option><option value="live">Live crypto · BTC-USD</option><option value="recording" disabled>Shared recording</option></select>
+      </div>
+      <div id="historical-source">
+        <label for="day">Trading day</label>
+        <select id="day" aria-describedby="status" disabled></select>
+      </div>
+      <p id="live-product" hidden><span class="live-dot" aria-hidden="true"></span>BTC-USD <span>Coinbase · 5 s delayed</span></p>
     </div>
-    <p id="live-product" hidden>BTC-USD · Coinbase</p>
-    <p id="status" role="status">Loading…</p>
+    <section class="listening-space" aria-label="Listening stage">
+      <div class="listening-copy">
+        <p class="eyebrow">A different way to feel the market</p>
+        <h2>Every move.<br><span>A little music.</span></h2>
+      </div>
+      <figure id="chart" hidden>
+        <svg viewBox="0 0 780 310" role="img" aria-labelledby="chart-title chart-description">
+          <title id="chart-title">Session close price</title>
+          <desc id="chart-description" data-visual="description">Price revealed with playback.</desc>
+          <defs>
+            <clipPath id="price-reveal"><rect data-visual="reveal" x="60" y="20" width="0" height="250" /></clipPath>
+          </defs>
+          <rect data-visual="background" x="60" y="24" width="690" height="240" />
+          <rect data-visual="flash" class="event-flash" x="60" y="24" width="690" height="240" opacity="0" />
+          <path data-visual="line" clip-path="url(#price-reveal)" fill="none" stroke="#c9e4ff" stroke-width="2" />
+          <line data-visual="cursor" y1="24" y2="264" stroke="#bbc4d4" stroke-dasharray="4 4" />
+          <circle data-visual="point" r="4" fill="#fff" />
+          <g class="chart-labels">
+            <text data-visual="high" x="8" y="18"></text>
+            <text data-visual="low" x="8" y="264"></text>
+            <text x="60" y="292">09:30</text>
+            <text x="405" y="292" text-anchor="middle">12:45</text>
+            <text x="750" y="292" text-anchor="end">16:00</text>
+          </g>
+        </svg>
+        <figcaption>Close price · New York time · USD</figcaption>
+      </figure>
+    </section>
     <fieldset id="controls" disabled>
-      <legend>Playback</legend>
-      <div class="playback-row">
-        <button id="play" type="button">Play</button>
+      <legend class="sr-only">Playback</legend>
+      <div class="transport">
+        <button id="play" type="button" aria-label="Start" aria-pressed="false">Start</button>
+        <p id="status" role="status">Loading…</p>
+      </div>
+      <fieldset id="preset"><legend>Choose your sound</legend><div id="preset-cards"></div></fieldset>
+      <div class="historical-tools">
         <div class="speed-control" id="historical-speed">
           <label for="speed">Speed</label>
           <select id="speed">
@@ -37,14 +72,14 @@
             <option value="4">4×</option>
           </select>
         </div>
+        <div class="timeline" id="historical-time">
+          <div class="timeline-heading">
+            <label for="seek">Session time (New York)</label>
+            <output id="time" for="seek" aria-live="off">09:30</output>
+          </div>
+          <input id="seek" type="range" min="0" max="389" step="1" value="0">
+        </div>
       </div>
-      <label for="preset">Sound preset</label>
-      <select id="preset"></select>
-      <div class="timeline-heading" id="historical-time">
-        <label for="seek">Session time (New York)</label>
-        <output id="time" for="seek" aria-live="off">09:30</output>
-      </div>
-      <input id="seek" type="range" min="0" max="389" step="1" value="0">
     </fieldset>
     <section id="recording-controls" hidden aria-label="Recording">
       <button id="record" type="button" disabled>Record</button>
@@ -54,28 +89,6 @@
       <input id="recording-link" aria-label="Recording link" readonly hidden>
       <p id="recording-error" role="status"></p>
     </section>
-    <figure id="chart" hidden>
-      <svg viewBox="0 0 780 310" role="img" aria-labelledby="chart-title chart-description">
-        <title id="chart-title">Session close price</title>
-        <desc id="chart-description" data-visual="description">Price revealed with playback.</desc>
-        <defs>
-          <clipPath id="price-reveal"><rect data-visual="reveal" x="60" y="20" width="0" height="250" /></clipPath>
-        </defs>
-        <rect data-visual="background" x="60" y="24" width="690" height="240" />
-        <rect data-visual="flash" class="event-flash" x="60" y="24" width="690" height="240" opacity="0" />
-        <path data-visual="line" clip-path="url(#price-reveal)" fill="none" stroke="#c9e4ff" stroke-width="2" />
-        <line data-visual="cursor" y1="24" y2="264" stroke="#bbc4d4" stroke-dasharray="4 4" />
-        <circle data-visual="point" r="4" fill="#fff" />
-        <g class="chart-labels">
-          <text data-visual="high" x="52" y="30" text-anchor="end"></text>
-          <text data-visual="low" x="52" y="264" text-anchor="end"></text>
-          <text x="60" y="292">09:30</text>
-          <text x="405" y="292" text-anchor="middle">12:45</text>
-          <text x="750" y="292" text-anchor="end">16:00</text>
-        </g>
-      </svg>
-      <figcaption>Close price · New York time · USD</figcaption>
-    </figure>
     <details id="debug" hidden>
       <summary>Debug panel</summary>
       <p id="historical-debug-help">Current cursor mapping, not the audio scheduler's lookahead. Paused values
@@ -99,9 +112,11 @@
     </details>
   </main>
   <footer>
+    <details><summary>Sources & credits</summary>
     <p>Live BTC-USD prices: <a href="https://www.coinbase.com/advanced-trade">Coinbase Advanced Trade</a>.</p>
     <p>Data from the HF Data Library (Elkassabgi 2026), <a href="https://hfdatalibrary.com">https://hfdatalibrary.com</a>, CC BY 4.0.</p>
     <p>Data provided for free by IEX. By accessing or using IEX Historical Data, you agree to the <a href="https://www.iex.io/legal/hist-data-terms">IEX Historical Data Terms of Use</a>.</p>
+    </details>
   </footer>
   <script src="vendor/Tone-15.1.22.js" defer></script>
   <script type="module" src="src/main.js"></script>
