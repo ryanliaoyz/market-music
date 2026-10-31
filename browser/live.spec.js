@@ -9,7 +9,10 @@ const heartbeat = JSON.stringify({ channel: "heartbeats", sequence_num: 0, event
 async function setup(page, { catalogFailure = false, clock = true } = {}) {
   const sockets = [], subscriptions = [], errors = [], closed = [];
   page.on("pageerror", cause => errors.push(cause.message));
-  if (clock) await page.clock.install();
+  if (clock) {
+    await page.clock.install({ time: new Date("2026-10-30T12:00:00Z") });
+    await page.clock.pauseAt(new Date("2026-10-30T12:00:01Z"));
+  }
   await page.routeWebSocket("wss://advanced-trade-ws.coinbase.com/**", ws => {
     sockets.push(ws);
     ws.onMessage(data => {
@@ -88,6 +91,23 @@ test("real Web Audio and the debug/chart mapping follow the delayed frame", asyn
   expect(state.debug.note).toBe(state.playback.audio.lastScheduled.note);
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   expect((await inspect(page)).playback.audio.activeVoices).toBe(0);
+  expect(mock.errors).toEqual([]);
+});
+
+test("live Tone selection changes the next audible frame while buffered prices retain their deadlines", async ({ page }) => {
+  const mock = await setup(page, { clock: false });
+  await page.getByLabel("Sound preset").selectOption("ambient-v1");
+  await mock.start(); mock.send(0, 100);
+  await page.waitForTimeout(500); mock.send(1, 110);
+  await page.getByLabel("Sound preset").selectOption("bass-heavy-v1");
+  await expect.poll(async () => (await inspect(page)).playback.audible?.mapping.presetId,
+    { intervals: [25], timeout: 8000 }).toBe("bass-heavy-v1");
+  const state = await inspect(page);
+  expect(state.debug.presetId).toBe("bass-heavy-v1");
+  expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(5000);
+  expect(mock.sockets).toHaveLength(1);
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  expect((await inspect(page)).playback.audio.activeToneFrames).toBe(0);
   expect(mock.errors).toEqual([]);
 });
 

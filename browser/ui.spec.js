@@ -38,7 +38,7 @@ test("keyboard navigation has visible focus and operates playback controls", asy
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled();
   const controls = [page.getByLabel("Mode", { exact: true }), page.getByLabel("Trading day"), page.getByRole("button", { name: "Play", exact: true }),
-    page.getByLabel("Speed"), page.getByRole("slider"), page.locator("#debug summary")];
+    page.getByLabel("Speed"), page.getByLabel("Sound preset"), page.getByRole("slider"), page.locator("#debug summary")];
   for (const control of controls) {
     await page.keyboard.press("Tab");
     await expect(control).toBeFocused();

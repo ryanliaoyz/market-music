@@ -35,6 +35,8 @@
           </select>
         </div>
       </div>
+      <label for="preset">Sound preset</label>
+      <select id="preset"></select>
       <div class="timeline-heading" id="historical-time">
         <label for="seek">Session time (New York)</label>
         <output id="time" for="seek" aria-live="off">09:30</output>
@@ -73,6 +75,7 @@
         <dt id="debug-return-label">1-minute return</dt><dd data-debug="return"></dd>
         <dt id="debug-sigma-label">Day σ · population standard deviation</dt><dd data-debug="sigma"></dd>
         <dt>Chosen note</dt><dd data-debug="note"></dd>
+        <dt>Preset · scale · synthesis</dt><dd id="preset-debug"></dd>
         <dt>Lead volume gain · linear</dt><dd data-debug="gain"></dd>
         <dt>Distortion drive · 0–24</dt><dd data-debug="drive"></dd>
         <dt>Rules · current mapping</dt><dd data-debug="rules"></dd>
@@ -87,6 +90,7 @@
     <p>Data from the HF Data Library (Elkassabgi 2026), <a href="https://hfdatalibrary.com">https://hfdatalibrary.com</a>, CC BY 4.0.</p>
     <p>Data provided for free by IEX. By accessing or using IEX Historical Data, you agree to the <a href="https://www.iex.io/legal/hist-data-terms">IEX Historical Data Terms of Use</a>.</p>
   </footer>
+  <script src="vendor/Tone-15.1.22.js" defer></script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

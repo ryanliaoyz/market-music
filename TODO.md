@@ -26,7 +26,7 @@
 
 ### M2: Tone.js presets (GRO-26)
 
-- [ ] Listeners can select Tone.js sound presets while live prices keep the same delayed timeline.
+- [x] Listeners can select Tone.js sound presets before or during historical/live playback; live switches use the next audible frame without changing the delayed timeline, and schedule-time capture retains its preset ID.
 
 ### M3: Recording and replay (GRO-27)
 

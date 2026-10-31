@@ -82,6 +82,35 @@ test("real audio advances, pauses, resumes, seeks and changes speed", async ({ p
   expect(current.visuals.minute).toBe(current.playback.minute);
 });
 
+test("all Tone presets run on real Web Audio and switch during playback", async ({ page }) => {
+  await page.getByLabel("Sound preset").selectOption("ambient-v1");
+  expect((await inspect(page)).debug.presetId).toBe("ambient-v1");
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  for (const id of ["ambient-v1", "plucky-v1", "bass-heavy-v1", "classic-v1"]) {
+    await page.getByLabel("Sound preset").selectOption(id);
+    await expect.poll(async () => (await inspect(page)).playback.audio.lastScheduled?.presetId).toBe(id);
+    expect((await inspect(page)).debug.presetId).toBe(id);
+  }
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  expect((await inspect(page)).playback.audio.activeToneFrames).toBe(0);
+  await page.getByLabel("Mode", { exact: true }).selectOption("live");
+  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
+  expect(await page.evaluate(async () => {
+    const { createSoundEngine } = await import("/src/sound.js");
+    const context = new AudioContext();
+    const engine = createSoundEngine({ bars: [], openingGapReturn: null }, { context });
+    await engine.resume();
+    const { mapSoundFrame } = await import("/src/sound.js");
+    engine.playMapping(mapSoundFrame({ close: 100, return: null, vwap: null },
+      { low: 100, high: 100, peakVolatility: 0 }, { gain: 0.11, presetId: "ambient-v1" }),
+      { when: context.currentTime + 0.1 });
+    await engine.dispose();
+    const state = context.state;
+    await context.close();
+    return state;
+  })).toBe("running");
+});
+
 test("missing minutes clear mapping and the price marker", async ({ page }) => {
   const missing = await page.evaluate(async () => {
     const { loadCatalog, loadSession } = await import("/src/data.js");

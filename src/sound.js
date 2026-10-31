@@ -1,17 +1,19 @@
-const SCALE = [0, 3, 5, 7, 10];
+import { DEFAULT_PRESET_ID, getPreset } from "./presets.js";
+import { createToneVoices } from "./tone-engine.js";
 const clamp = value => Math.max(0, Math.min(1, value));
 const frequency = midi => 440 * 2 ** ((midi - 69) / 12);
 const median = sorted => {
   const middle = Math.floor(sorted.length / 2);
   return sorted.length === 0 ? 0 : sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
-const scaleNote = (position, octaves, root) => {
-  const step = Math.round(clamp(position) * octaves * SCALE.length);
-  return root + 12 * Math.floor(step / SCALE.length) + SCALE[step % SCALE.length];
+const scaleNote = (position, octaves, root, scale) => {
+  const step = Math.round(clamp(position) * octaves * scale.length);
+  return root + 12 * Math.floor(step / scale.length) + scale[step % scale.length];
 };
 
 // Input is the validated, enriched computeFeatures result, not raw market data.
-export function createSoundScore(features) {
+export function createSoundScore(features, { presetId = DEFAULT_PRESET_ID } = {}) {
+  getPreset(presetId);
   const closes = features.bars.map(bar => bar.close);
   const low = Math.min(...closes);
   const high = Math.max(...closes);
@@ -21,29 +23,33 @@ export function createSoundScore(features) {
   const volumeReference = medianVolume || median(positive) || 1;
   const peakVolatility = Math.max(0, ...features.bars.map(bar => bar.rollingVolatility ?? 0));
   return {
+    presetId,
     medianVolume,
     volumeReference,
     peakVolatility,
     bars: features.bars.map((bar, index) => mapSoundFrame({ ...bar, index, sigma: features.sigma },
       { low, high, peakVolatility, volumeReference },
-      { opening: index === 0 && features.openingGapReturn !== null && features.openingGapReturn !== 0 })),
+      { presetId, opening: index === 0 && features.openingGapReturn !== null && features.openingGapReturn !== 0 })),
   };
 }
 
-export function mapSoundFrame(bar, { low, high, peakVolatility, volumeReference }, { gain, opening = false } = {}) {
+export function mapSoundFrame(bar, { low, high, peakVolatility, volumeReference }, { gain, opening = false, presetId = DEFAULT_PRESET_ID } = {}) {
+  const preset = getPreset(presetId);
   const position = price => high === low ? 0.5 : (price - low) / (high - low);
-  const note = scaleNote(position(bar.close), 3, 48);
+  const note = scaleNote(position(bar.close), 3, preset.root, preset.scale);
   const intensity = peakVolatility ? clamp((bar.rollingVolatility ?? 0) / peakVolatility) : 0;
   const harmony = bar.return > 0 ? note + 4 : bar.return < 0 ? note - 6 : null;
   const rules = [];
   if (harmony !== null) rules.push(bar.return > 0 ? "up-major-third" : "down-tritone");
   if (bar.event) rules.push(bar.event === "drop" ? "drop-crash" : "spike-bell");
   if (opening) rules.push("opening-gong");
-  return { index: bar.index, minute: bar.minute, return: bar.return, sigma: bar.sigma,
+  return { presetId, scale: [...preset.scale], root: preset.root,
+    oscillator: presetId === DEFAULT_PRESET_ID ? (intensity === 0 ? "triangle" : intensity === 1 ? "sawtooth" : "triangle/sawtooth blend") : preset.oscillator,
+    index: bar.index, minute: bar.minute, return: bar.return, sigma: bar.sigma,
     note, frequency: frequency(note), harmony, harmonyFrequency: harmony === null ? null : frequency(harmony),
     gain: gain ?? 0.22 * clamp(Math.log2(1 + bar.volume / volumeReference) / 2),
     intensity, cutoff: 400 + 7600 * intensity, drive: 24 * intensity,
-    droneNote: bar.vwap === null ? null : scaleNote(position(bar.vwap), 1, 36), rules };
+    droneNote: bar.vwap === null ? null : scaleNote(position(bar.vwap), 1, preset.root - 12, preset.scale), rules };
 }
 
 function distortionCurve(drive) {
@@ -53,9 +59,10 @@ function distortionCurve(drive) {
   });
 }
 
-export function createSoundEngine(features, { context: suppliedContext } = {}) {
+export function createSoundEngine(features, { context: suppliedContext, presetId = DEFAULT_PRESET_ID, tone: toneLibrary = globalThis.Tone } = {}) {
   const context = suppliedContext ?? new globalThis.AudioContext();
-  const score = createSoundScore(features);
+  let score = createSoundScore(features, { presetId });
+  let toneVoices = null;
   const master = context.createGain();
   master.gain.value = 0.6;
   const compressor = context.createDynamicsCompressor();
@@ -79,7 +86,7 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
     const chain = [source, ...nodes, envelope];
     for (let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i + 1]);
     envelope.connect(master);
-    const entry = { source, chain };
+    const entry = { source, chain, when };
     voices.add(entry);
     source.onended = () => {
       for (const node of chain) node.disconnect();
@@ -132,6 +139,7 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
   }
 
   function stop() {
+    toneVoices?.stop();
     for (const { source, chain } of voices) {
       source.stop();
       for (const node of chain) node.disconnect();
@@ -160,10 +168,16 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
   }
 
   function schedule(mapping, when, duration) {
-    for (const [type, mix] of [["triangle", 1 - mapping.intensity], ["sawtooth", mapping.intensity]]) {
-      if (mix === 0 || mapping.gain === 0) continue;
-      tone(mapping.frequency, type, mapping.gain * mix, when, duration * 0.9, mapping);
-      if (mapping.harmonyFrequency !== null) tone(mapping.harmonyFrequency, type, mapping.gain * mix * 0.35, when, duration * 0.9, mapping);
+    if (mapping.presetId !== DEFAULT_PRESET_ID) {
+      toneVoices ??= createToneVoices(toneLibrary, context, master);
+      toneVoices.play(mapping, getPreset(mapping.presetId), when, duration);
+    }
+    if (mapping.presetId === DEFAULT_PRESET_ID) {
+      for (const [type, mix] of [["triangle", 1 - mapping.intensity], ["sawtooth", mapping.intensity]]) {
+        if (mix === 0 || mapping.gain === 0) continue;
+        tone(mapping.frequency, type, mapping.gain * mix, when, duration * 0.9, mapping);
+        if (mapping.harmonyFrequency !== null) tone(mapping.harmonyFrequency, type, mapping.gain * mix * 0.35, when, duration * 0.9, mapping);
+      }
     }
     if (mapping.droneNote !== null) {
       if (!drone) {
@@ -186,7 +200,16 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
   }
 
   return {
-    score,
+    get score() { return score; },
+    setPreset(id) { assertOpen(); getPreset(id); stop(); score = createSoundScore(features, { presetId: id }); },
+    cancelScheduled(time) {
+      toneVoices?.cancelFrom(time);
+      for (const entry of [...voices]) if (entry.when >= time) {
+        entry.source.stop();
+        for (const node of entry.chain) node.disconnect();
+        voices.delete(entry);
+      }
+    },
     playMapping,
     async resume() {
       assertOpen();
@@ -215,6 +238,7 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
     async dispose() {
       if (disposed) return;
       stop();
+      toneVoices?.dispose();
       master.disconnect();
       compressor.disconnect();
       disposed = true;
@@ -224,6 +248,7 @@ export function createSoundEngine(features, { context: suppliedContext } = {}) {
       return {
         currentTime: context.currentTime, contextState: context.state, waiting, disposed,
         activeVoices: voices.size, droneActive: drone !== null,
+        ...toneVoices?.inspect(),
         lastScheduled: last === null ? null : { ...last, rules: [...last.rules] },
       };
     },

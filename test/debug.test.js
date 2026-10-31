@@ -72,6 +72,15 @@ test("panel formats actual mappings, null returns, multiple rules and preview re
   assert.deepEqual(debug.inspect().rules, ["down-tritone", "drop-crash"]);
 });
 
+test("historical preview follows preset mapping instead of a stale default score", () => {
+  const debug = createDebugPanel(features, panel());
+  debug.render({ ...snapshot(0), presetId: "bass-heavy-v1" });
+  assert.equal(debug.inspect().presetId, "bass-heavy-v1");
+  assert.equal(debug.inspect().root, 36);
+  debug.render({ ...snapshot(0), presetId: "plucky-v1" });
+  assert.deepEqual(debug.inspect().scale, [0, 2, 4, 7, 9]);
+});
+
 test("rests, end and replacement sessions clear values without confusing zero with missing", () => {
   const root = panel();
   const debug = createDebugPanel(features, root);

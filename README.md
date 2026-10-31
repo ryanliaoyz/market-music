@@ -48,6 +48,19 @@ minutes. Pause/resume, seek, and speed changes restart the displayed minute.
 Changing days stops audio and loads paused; Play after the end replays the day.
 The opening gong repeats only when replaying the opening bar.
 
+**Sound preset** is available before and during playback in both modes. Classic
+keeps the original sound; Ambient uses a soft sine voice, Plucky a short triangle
+voice and major-pentatonic scale, and Bass-heavy a saw voice one octave lower.
+The others use minor pentatonic. Harmony retains the signed major-third/tritone
+mapping. Historical changes restart the displayed minute; live changes affect
+the next audible frame, including audio already queued ahead, without refilling
+the five-second buffer. The current frame and its release tail finish unchanged.
+Selection persists across days and modes for the page session.
+
+Tone.js 15.1.22 is served locally, with no build or runtime CDN dependency:
+345,500 bytes raw, about 80 KB gzip. See [vendor provenance and license](vendor/README.md).
+All sounds are synthesized; no sample assets are used.
+
 ### Live crypto
 
 Select **Live crypto · BTC-USD**, then **Start**. The connection opens only on Start;
@@ -56,7 +69,7 @@ stream remains connected throughout playback, including quiet intervals. **Stop*
 is the only unsubscribe control and clears buffered audio/data. Stop before changing
 modes or restarting after an error; live mode has no pause, seek, or speed control.
 
-Price maps to the same pentatonic scale, return to harmony, and volatility/events
+Price maps to the selected preset's scale, return to harmony, and volatility/events
 to timbre and hits. Live gain is fixed at 0.11. Coinbase ticker volume is a rolling
 24-hour total, so live mode does not pretend it is trade size and has no volume-based
 gain, VWAP drone, or opening gong. Live normalization is causal and rolling rather
@@ -81,6 +94,8 @@ the audible cursor; the chart and panel follow the cursor. See
 [debug contracts](SPEC.md#debug-panel-conventions) for fields and timing.
 
 In live mode Debug separates the newest received price from the delayed mapping.
+It also distinguishes the selected preset from the audible frame's captured preset,
+with scale, register, oscillator, filter cutoff and distortion diagnostics.
 It exposes connection/error/retry state, tick/heartbeat ages, buffer duration, queue
 size, segment ID, delayed cursor, and normalization references. The same values are
 available through `window.marketMusic.inspect()`; buffering never previews future
@@ -93,6 +108,9 @@ prices on the main chart.
   the displayed minute, and the end must stay silent until replayed.
 - Listen on speakers/headphones for calm-to-distorted timbre, harmony, drone, and
   event hits; automated checks cannot assess audible quality.
+- Select each sound preset before Play/Start and during playback. Check historical
+  minute restart, live next-frame switching without new buffering, and Debug's
+  selected versus audible preset. Stop/Pause must silence all voices and tails.
 - Watch the chart: missing minutes break the line and hide the price marker,
   backward seeks hide later prices, and day changes clear the old chart. At 0.5×,
   compare event flashes with sounds. Pause must stop flashes; enabling the
@@ -167,7 +185,7 @@ and deployed playback check are [pending](TODO.md#m7-browser-tests-and-deploy).
 1. Import into Vercel with the **Other** framework preset, an empty build command,
    and output directory `.`. Serving requires no install step or environment variables.
 2. Serve `index.html`, `src/`, and `data/` together with relative paths preserved.
-   Any static host supporting JavaScript modules and JSON/CSV works.
+   Include `vendor/` for Tone.js. Any static host supporting JavaScript modules and JSON/CSV works.
 3. Open the deployed HTTPS URL, confirm data loads and Play enables audio, and run
    the [manual playback check](#manual-playback-check-ryan), including both symbols
    and Debug. Also verify Live Start/Stop and Coinbase connectivity. Live traffic
@@ -189,7 +207,7 @@ and deployed playback check are [pending](TODO.md#m7-browser-tests-and-deploy).
   browser receipt timing with a fixed five-second delay on a 500 ms frame grid;
   network/exchange latency is additional. No historical backfill is requested.
   Missing ticks are rests; geographic/network restrictions can make Coinbase
-  unavailable. Recording, WAV export, share/replay links, and Tone.js presets are
+   unavailable. Recording, WAV export, and share/replay links are
   planned in [Version 2](TODO.md#version-2).
 - Automated browser coverage is Chromium only. Audio needs a user gesture;
   delayed/background timers skip expired beats rather than playing a burst later.
