@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.1 — Unreleased
+
+- GRO-34: musical Live mode with price-change scale degrees, in-key trend-driven
+  chords, actual Coinbase trade-rate rhythms and size accents, and four versioned
+  presets with distinct rhythmic textures. The five-second delay is preserved.
+- Recording v2 captures resolved chords, patterns and accents for shared replay
+  and WAV, retaining v1 playback, 30-second clips and the 4 KiB link cap.
+
 ## v2 — Unreleased
 
 - Delayed live BTC-USD music from Coinbase's public feed, with five-second

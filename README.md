@@ -52,11 +52,11 @@ minutes. Pause/resume, seek, and speed changes restart the displayed minute.
 Changing days stops audio and loads paused; Play after the end replays the day.
 The opening gong repeats only when replaying the opening bar.
 
-**Sound preset** is available before and during playback in both modes. Classic
+**Sound preset** is available before and during playback in both modes. In historical mode, Classic
 keeps the original sound; Ambient uses a soft sine voice, Plucky a short triangle
 voice and major-pentatonic scale, and Bass-heavy a saw voice one octave lower.
-The others use minor pentatonic. Harmony retains the signed major-third/tritone
-mapping. Historical changes restart the displayed minute; live changes affect
+The others use minor pentatonic. Historical harmony retains the signed major-third/tritone
+mapping. Live uses the musical presets described below. Historical changes restart the displayed minute; live changes affect
 the next audible frame, including audio already queued ahead, without refilling
 the five-second buffer. The current frame and its release tail finish unchanged.
 Selection persists across days and modes for the page session.
@@ -73,11 +73,18 @@ stream remains connected throughout playback, including quiet intervals. **Stop*
 is the only unsubscribe control and clears buffered audio/data. Stop before changing
 modes or restarting after an error; live mode has no pause, seek, or speed control.
 
-Price maps to the selected preset's scale, return to harmony, and volatility/events
-to timbre and hits. Live gain is fixed at 0.11. Coinbase ticker volume is a rolling
-24-hour total, so live mode does not pretend it is trade size and has no volume-based
-gain, VWAP drone, or opening gong. Live normalization is causal and rolling rather
-than whole-day. See the [live contracts](SPEC.md#live-crypto-contracts).
+Price changes move the melody by scale degrees in C natural minor. Changes are
+normalized against the recent 20-second return range, so small BTC moves are audible;
+flat prices hold the note. Smoothed trend selects in-key chord progressions, changing
+chords every four seconds. Actual Coinbase `market_trades` activity controls note
+density and size-relative accents; ticker's 24-hour volume is never treated as size.
+
+The four versioned live presets differ musically: **Classic** pulses with chord stabs,
+**Ambient** uses sparse sustained chords, **Plucky** plays short arpeggios, and
+**Bass-heavy** combines a low ostinato with offbeat chords. Base gain is 0.11 with
+bounded trade accents; there is no VWAP drone or opening gong. Missing price slots
+remain rests. All analysis is causal; Debug exposes degree, normalized change,
+trend, chord/pattern, trade rate, size and accent. See the [live contracts](SPEC.md#live-crypto-contracts).
 
 Kraken's public v2 ticker is a documented contingency if Coinbase is inaccessible
 in a target browser/region; no Kraken adapter or automatic provider switch ships.
@@ -94,7 +101,9 @@ or audio suspension also seals the clip. An empty capture produces no download.
 16-bit PCM, cut at the clip endpoint. **Copy link** displays a selectable URL and
 copies it when clipboard access is available. Its versioned hash contains the
 recording, capped at 4 KiB. Opening a link loads a paused replay; press **Play** to
-hear it. Captured presets are fixed during replay. Replay needs no exchange access.
+hear it. New clips use `#recording=v2.` to retain resolved chords, rhythm and accents;
+existing `#recording=v1.` links keep their original sound. Captured presets are fixed
+during replay. Replay needs no exchange access.
 Reloading loses an unshared live recording; save the WAV or link first.
 
 ### Diagnostics
@@ -148,6 +157,10 @@ prices on the main chart.
 - Try Live on the deployed HTTPS URL: Start, observe five seconds of buffering,
   then listen and compare the delayed chart with Debug. Stop during buffering and
   playback; verify immediate silence, mode switching, and a fresh buffer on Start.
+- Audition quiet and busy Live periods across all four presets: small price changes
+  should move the melody in-key, chords should follow a slower progression, and
+  busy/larger trades should increase rhythmic activity/accents. Compare the distinct
+  pulse, pad, arpeggio and bass textures rather than just oscillator tone.
 - Temporarily interrupt the network: audio must stop, reconnect visibly, and refill
    five seconds from the first fresh price. Backgrounding stops Live; return and
    tap Start to reconnect without a catch-up burst. Check Coinbase reachability and audible quality on

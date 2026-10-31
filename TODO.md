@@ -46,4 +46,12 @@
 - [x] README usage covers live mode, presets, recording, share replay, WAV download, and home-screen installation; SPEC clarifies the runtime boundary and [v2 release notes](CHANGELOG.md) describe the shipped features and limits.
 - [ ] Production passes the [post-deploy checklist](README.md#post-deploy-checklist), including the outstanding M1 live and M4 mobile checks; v2 release notes are dated when acceptance is complete.
 
+## Version 2.1
+
+### M1: Musical live mode (GRO-34)
+
+- [x] Live BTC price changes play scale-degree melodies and in-key trend-driven chords, with actual trade-rate/size rhythms and four distinct versioned presets on the five-second delayed timeline.
+- [x] New recordings preserve musical patterns in shared replay and WAV, while v1 links, 30-second clips and the 4 KiB limit remain supported.
+- [ ] Ryan auditions quiet/busy Live periods across all four presets on deployed HTTPS and compares the sound with shared replay and WAV.
+
 ## Later

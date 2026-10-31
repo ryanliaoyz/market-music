@@ -20,7 +20,8 @@ export function createRecorder() {
       .filter(frame => frame.when < time && Math.round(frame.playbackOffsetMs - startOffsetMs) < durationMs).slice(0, MAX_FRAMES)
       .map(frame => ({ offsetMs: Math.round(frame.playbackOffsetMs - startOffsetMs), price: frame.price,
         presetId: frame.presetId, note: frame.mapping.note, harmony: frame.mapping.harmony,
-        intensity: frame.mapping.intensity, event: frame.event }));
+        intensity: frame.mapping.intensity, event: frame.event,
+        ...(frame.mapping.mask === undefined ? {} : { chord: [...frame.mapping.chord], mask: frame.mapping.mask, accent: frame.mapping.accent }) }));
     clip = frames.length ? { durationMs, frames } : null;
     state = clip ? "ready" : "idle"; reason = why;
   }

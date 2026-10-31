@@ -38,7 +38,7 @@ test("Start buffers five seconds from first tick, then maps and plays the delaye
   assert.ok(Math.abs(s.player.inspect().audible.return - 0.2) < 1e-12);
   assert.equal(s.ticks.length, 3);
   assert.equal(s.frames[0].playbackOffsetMs - s.frames[0].sessionOffsetMs, 5000);
-  assert.ok(s.context.nodes.some(node => node.kind === "oscillator"));
+  assert.ok(s.player.inspect().audio.activeToneFrames > 0);
   s.player.stop(); assert.equal(s.active(), false);
   assert.equal(s.player.inspect().audio.activeVoices, 0);
   await s.player.dispose();
@@ -47,28 +47,28 @@ test("Start buffers five seconds from first tick, then maps and plays the delaye
 test("switch replaces lookahead audio with the new preset without moving the live deadline or source history", async () => {
   const s = setup(); await s.player.start(); s.tick(100);
   s.advance(499); s.tick(110); s.advance(4426);
-  assert.equal(s.captures.get("1:0").presetId, "classic-v1");
+  assert.equal(s.captures.get("1:0").presetId, "classic-v2");
   const source = structuredClone(s.frames[0]);
-  s.player.setPreset("bass-heavy-v1");
+  s.player.setPreset("bass-heavy-v2");
   const captured = s.captures.get("1:0");
   assert.deepEqual(s.cancellations, ["1:0"]);
-  assert.equal(captured.presetId, "bass-heavy-v1");
-  assert.equal(captured.mapping.note, 55);
+  assert.equal(captured.presetId, "bass-heavy-v2");
+  assert.equal(captured.mapping.note, 48);
   assert.equal(captured.playbackOffsetMs, 5000);
   assert.equal(captured.when, 15);
   assert.deepEqual(s.frames[0], source);
   s.advance(75);
-  assert.equal(s.player.inspect().audible.mapping.presetId, "bass-heavy-v1");
+  assert.equal(s.player.inspect().audible.mapping.presetId, "bass-heavy-v2");
   assert.equal(s.player.inspect().delayedCursorMs, 0);
-  s.player.setPreset("plucky-v1");
-  assert.equal(s.player.inspect().audible.mapping.presetId, "bass-heavy-v1");
+  s.player.setPreset("plucky-v2");
+  assert.equal(s.player.inspect().audible.mapping.presetId, "bass-heavy-v2");
   s.advance(500);
-  assert.equal(s.player.inspect().audible.mapping.presetId, "plucky-v1");
+  assert.equal(s.player.inspect().audible.mapping.presetId, "plucky-v2");
   assert.equal(s.player.inspect().segmentId, 1);
   s.player.setConnection({ state: "reconnecting", reason: "closed" });
-  assert.equal(s.player.inspect().presetId, "plucky-v1");
+  assert.equal(s.player.inspect().presetId, "plucky-v2");
   s.player.stop(); await s.player.start();
-  assert.equal(s.player.inspect().presetId, "plucky-v1");
+  assert.equal(s.player.inspect().presetId, "plucky-v2");
   await s.player.dispose();
 });
 
@@ -81,6 +81,28 @@ test("cutoff-boundary ticks never play early and empty intervals are rests", asy
   s.advance(500); assert.equal(s.player.inspect().audible.price, 120);
   s.advance(500); assert.equal(s.player.inspect().audible, null);
   assert.equal(s.player.inspect().latest.price, null);
+  await s.player.dispose();
+});
+
+test("trade bins use source cutoffs, stay immutable and reset with reconnect", async () => {
+  const s = setup(); await s.player.start(); s.tick(60000);
+  s.advance(100);
+  for (let n = 0; n < 20; n++) s.player.acceptTrade({ connectionId: 1, size: 0.1 });
+  s.tick(60000.01); s.advance(400);
+  const source = s.frames[1];
+  assert.equal(source.tradeCount, 20); assert.equal(source.tradeSize, 2.0000000000000004);
+  assert.equal(source.mapping.mask, 15);
+  const saved = structuredClone(source);
+  s.advance(1); s.player.acceptTrade({ connectionId: 1, size: 3 }); s.tick(60000.02);
+  s.advance(499); assert.equal(s.frames[2].tradeCount, 1);
+  assert.deepEqual(s.frames[1], saved);
+  s.advance(4500);
+  assert.equal(s.player.inspect().audible.mapping.mask, 15);
+  assert.equal(s.player.inspect().audible.playbackOffsetMs - source.sessionOffsetMs, 5000);
+  s.player.setConnection({ state: "reconnecting", reason: "lost" });
+  s.player.acceptTrade({ connectionId: 1, size: 100 });
+  s.tick(61000, 2);
+  assert.equal(s.frames.at(-1).tradeCount, 0); assert.equal(s.frames.at(-1).degree, 7);
   await s.player.dispose();
 });
 

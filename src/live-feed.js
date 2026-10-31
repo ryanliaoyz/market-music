@@ -1,6 +1,6 @@
 export const LIVE_URL = "wss://advanced-trade-ws.coinbase.com";
 
-export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onStatus = () => {},
+export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onTrade = () => {}, onStatus = () => {},
   WebSocket: Socket = globalThis.WebSocket, now = () => Date.now(),
   monotonic = () => performance.now(), setTimeout: later = globalThis.setTimeout,
   clearTimeout: cancel = globalThis.clearTimeout, random = Math.random } = {}) {
@@ -10,10 +10,11 @@ export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onSta
   let state = "idle", reason = "created", error = null, retryAt = null;
   let connectedAt = 0;
   let rejectedSubscription = false;
+  let tradeSequence = -1, tradeIds = new Set(), acceptedTrades = 0;
 
   function inspect() {
     return { provider: "coinbase", productId, state, reason, error, connectionId,
-      sequence, attempts, retryAt, rejected, gaps,
+      sequence, tradeSequence, acceptedTrades, attempts, retryAt, rejected, gaps,
       tickAgeMs: lastTickAt === null ? null : now() - lastTickAt,
       heartbeatAgeMs: lastHeartbeatAt === null ? null : now() - lastHeartbeatAt };
   }
@@ -56,6 +57,7 @@ export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onSta
     if (!running) return;
     const token = ++generation;
     connectionId++; sequence = -1; lastTickAt = lastHeartbeatAt = healthySince = null;
+    tradeSequence = -1; tradeIds.clear();
     connectedAt = now();
     retryAt = null;
     publish("connecting", "opening-socket");
@@ -65,6 +67,7 @@ export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onSta
     socket.onopen = () => {
       if (token !== generation) return;
       socket.send(JSON.stringify({ type: "subscribe", channel: "ticker", product_ids: [productId] }));
+      socket.send(JSON.stringify({ type: "subscribe", channel: "market_trades", product_ids: [productId] }));
       socket.send(JSON.stringify({ type: "subscribe", channel: "heartbeats" }));
     };
     socket.onerror = () => { if (token === generation) fail("Cannot connect to Coinbase. Check your connection and retry."); };
@@ -84,9 +87,35 @@ export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onSta
         }
         return;
       }
-      if (!["ticker", "heartbeats"].includes(message.channel)) return;
+      if (!["ticker", "market_trades", "heartbeats"].includes(message.channel)) return;
       if (!Number.isSafeInteger(message.sequence_num) || message.sequence_num < 0 || !Array.isArray(message.events)) {
         rejected++; error = "Invalid Coinbase envelope"; onStatus(inspect()); return;
+      }
+      if (message.channel === "market_trades") {
+        if (message.sequence_num <= tradeSequence) { rejected++; onStatus(inspect()); return; }
+        const discontinuity = tradeSequence >= 0 && message.sequence_num !== tradeSequence + 1;
+        if (discontinuity) gaps++;
+        tradeSequence = message.sequence_num;
+        for (const entry of message.events) {
+          if (!entry || !["snapshot", "update"].includes(entry.type) || !Array.isArray(entry.trades)) { rejected++; continue; }
+          // Subscription snapshots are historical, not activity received in this live interval.
+          if (entry.type === "snapshot") continue;
+          for (const trade of entry.trades) {
+            if (!trade || trade.product_id !== productId) continue;
+            const price = typeof trade.price === "string" && trade.price.trim() ? Number(trade.price) : NaN;
+            const size = typeof trade.size === "string" && trade.size.trim() ? Number(trade.size) : NaN;
+            const exchangeTimeMs = Date.parse(trade.time);
+            if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(size) || size <= 0 ||
+                !Number.isFinite(exchangeTimeMs) || typeof trade.trade_id !== "string" || !trade.trade_id ||
+                !["BUY", "SELL"].includes(trade.side) || tradeIds.has(trade.trade_id)) { rejected++; continue; }
+            tradeIds.add(trade.trade_id);
+            if (tradeIds.size > 2048) tradeIds.delete(tradeIds.values().next().value);
+            acceptedTrades++;
+            onTrade(Object.freeze({ productId, connectionId, sequence: tradeSequence, price, size,
+              exchangeTimeMs, elapsedMs: monotonic() - started, discontinuity }));
+          }
+        }
+        onStatus(inspect()); return;
       }
       // Coinbase sequences are scoped to a channel, not shared with heartbeats.
       if (message.channel === "heartbeats") {
@@ -139,6 +168,7 @@ export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onSta
       running = false;
       if (socket?.readyState === 1) {
         socket.send(JSON.stringify({ type: "unsubscribe", channel: "ticker", product_ids: [productId] }));
+        socket.send(JSON.stringify({ type: "unsubscribe", channel: "market_trades", product_ids: [productId] }));
         socket.send(JSON.stringify({ type: "unsubscribe", channel: "heartbeats" }));
       }
       disconnect(); retryAt = null; publish("stopped", "stopped");
