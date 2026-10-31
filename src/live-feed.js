@@ -105,14 +105,15 @@ export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onTra
             const price = typeof trade.price === "string" && trade.price.trim() ? Number(trade.price) : NaN;
             const size = typeof trade.size === "string" && trade.size.trim() ? Number(trade.size) : NaN;
             const exchangeTimeMs = Date.parse(trade.time);
-            if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(size) || size <= 0 ||
+            if (!Number.isFinite(price) || price < 1e-12 || price > 1e12 || !Number.isFinite(size) || size < 1e-12 || size > 1e12 ||
                 !Number.isFinite(exchangeTimeMs) || typeof trade.trade_id !== "string" || !trade.trade_id ||
                 !["BUY", "SELL"].includes(trade.side) || tradeIds.has(trade.trade_id)) { rejected++; continue; }
             tradeIds.add(trade.trade_id);
             if (tradeIds.size > 2048) tradeIds.delete(tradeIds.values().next().value);
             acceptedTrades++;
             onTrade(Object.freeze({ productId, connectionId, sequence: tradeSequence, price, size,
-              exchangeTimeMs, elapsedMs: monotonic() - started, discontinuity }));
+              exchangeTimeMs, tradeId: trade.trade_id, aggressor: trade.side === "SELL" ? 1 : -1,
+              elapsedMs: monotonic() - started, discontinuity }));
           }
         }
         onStatus(inspect()); return;
@@ -143,11 +144,17 @@ export function createLiveFeed({ productId = "BTC-USD", onTick = () => {}, onTra
         for (const ticker of entry.tickers) {
           if (!ticker || ticker.product_id !== productId) continue;
           const price = typeof ticker.price === "string" && ticker.price.trim() !== "" ? Number(ticker.price) : NaN;
-          if (!Number.isFinite(price) || price <= 0) { rejected++; error = "Invalid Coinbase price"; continue; }
+           if (!Number.isFinite(price) || price < 1e-12 || price > 1e12) { rejected++; error = "Invalid Coinbase price"; continue; }
+           const bid = Number(ticker.best_bid), ask = Number(ticker.best_ask);
+           if (!Number.isFinite(bid) || !Number.isFinite(ask) || bid < 1e-12 || ask > 1e12 || ask < bid) {
+             rejected++; error = "Invalid Coinbase quote"; continue;
+           }
+           const mid = bid + (ask - bid) / 2, spread = ask - bid;
           const receivedAtMs = now();
           lastTickAt = receivedAtMs;
           onTick(Object.freeze({ provider: "coinbase", productId, connectionId, sequence,
-            exchangeTimeMs, receivedAtMs, elapsedMs: monotonic() - started, price, discontinuity }));
+            exchangeTimeMs, receivedAtMs, elapsedMs: monotonic() - started, price, mid, spread,
+            spreadBps: spread / mid * 10000, discontinuity }));
           accepted = true;
         }
       }

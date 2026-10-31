@@ -90,9 +90,13 @@ density and size-relative accents; ticker's 24-hour volume is never treated as s
 The four versioned live presets differ musically: **Classic** pulses with chord stabs,
 **Ambient** uses sparse sustained chords, **Plucky** plays short arpeggios, and
 **Bass-heavy** combines a low ostinato with offbeat chords. Base gain is 0.11 with
-bounded trade accents; there is no VWAP drone or opening gong. Missing price slots
-remain rests. All analysis is causal; Debug exposes degree, normalized change,
-trend, chord/pattern, trade rate, size and accent. See the [live contracts](SPEC.md#live-crypto-contracts).
+bounded trade accents; there is no VWAP drone or opening gong. Live uses the ticker's
+bid/ask mid and carries the last mid through quiet beats. Every received quote
+contributes to beat statistics; trades retain exchange-time sixteenth placement.
+Frames finalize as they enter the scheduler, accepting delayed trade batches until
+then without changing the five-second deadline. Debug exposes bounded signal
+controls, their smoothing/latches, quote age and late-trade counts alongside the
+current musical mapping. See the [live contracts](SPEC.md#live-crypto-contracts).
 
 Kraken's public v2 ticker is a documented contingency if Coinbase is inaccessible
 in a target browser/region; no Kraken adapter or automatic provider switch ships.
@@ -320,8 +324,9 @@ shell assets, bump the cache version in `sw.js` and keep its explicit list compl
 - Live prices are sampled ticker updates, not a complete trade history. They use
   browser receipt timing with a fixed five-second delay on a 500 ms frame grid;
   network/exchange latency is additional. No historical backfill is requested.
-  Missing ticks are rests; geographic/network restrictions can make Coinbase
-   unavailable. Recordings retain sampled audible frames, not a raw trade history.
+  Empty live intervals carry the last mid; geographic/network restrictions can make
+  Coinbase unavailable. Trades arriving after frame finalization are counted and
+  excluded. Recordings retain audible frames, not a raw trade history.
 - Automated browser coverage is Chromium only. Audio needs a user gesture;
   delayed/background timers skip expired beats rather than playing a burst later.
 

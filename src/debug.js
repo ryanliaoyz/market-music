@@ -23,7 +23,8 @@ export function createLiveDebugPanel(root) {
       write("gain", decimal(mapping?.gain ?? null));
       write("drive", decimal(mapping?.drive ?? null));
       const music = current?.degree === undefined ? "" : ` · degree ${current.degree}; Δ/range ${current.normalizedChange.toFixed(2)}; trend ${current.trend}; trades/s ${current.tradeRate.toFixed(1)}`;
-      write("rules", (mapping?.rules.join(", ") || "none") + music);
+      const signal = current?.controls ? ` · controls ${JSON.stringify(current.controls)} · mid ${current.mid}; spread ${current.spread}; quote age ${current.quoteAgeMs} ms` : "";
+      write("rules", (mapping?.rules.join(", ") || "none") + music + signal);
       write("waiting", snapshot.waiting ?? "none");
       write("reason", snapshot.reason);
       frame = { frameId: current?.id ?? null, note: mapping?.note ?? null, gain: mapping?.gain ?? null,
@@ -31,6 +32,7 @@ export function createLiveDebugPanel(root) {
         scale: mapping?.scale ?? null, root: mapping?.root ?? null, oscillator: mapping?.oscillator ?? null,
         cutoff: mapping?.cutoff ?? null, drive: mapping?.drive ?? null,
         references: current?.references ?? null, policy: snapshot.policy,
+        controls: current?.controls ?? null, signal: snapshot.signal ?? null, aggregate: snapshot.aggregate ?? null,
         music: current ? { degree: current.degree, normalizedChange: current.normalizedChange,
           range: current.range, trend: current.trend, chord: mapping?.chord, mask: mapping?.mask,
           tradeRate: current.tradeRate, tradeSize: current.tradeSize, accent: mapping?.accent } : null };
