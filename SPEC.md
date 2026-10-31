@@ -109,8 +109,9 @@ generated from `scripts/generate-icons.py`; maskable artwork stays in the safe z
 ## Live crypto contracts
 
 The live pipeline is `live-feed.js` (Coinbase validation/connection) →
-`live-playback.js` (receive-time buffer/scheduling) → `live-features.js` (causal
-frames) → `sound.js` (shared mapping/synthesis). `main.js` wires Start/Stop and the
+`live-playback.js` / `live-aggregate.js` (buffer, beat aggregation and scheduling) →
+`live-features.js` / `live-controls.js` (causal frames and bounded signals) →
+`sound.js` (shared mapping/synthesis). `main.js` wires Start/Stop and the
 existing chart/debug surfaces. Historical CSV loading and the 390-minute player
 retain their separate contracts below.
 
@@ -127,7 +128,7 @@ retain their separate contracts below.
   remain actionable while Stop retains subscription ownership.
 - Connection/subscription timeout is 10 seconds; missing heartbeats for five
   seconds cause reconnect. A healthy subscribed but quiet market stays connected
-  and produces rests. Reconnect uses jittered exponential backoff up to 30 seconds,
+  and carries its last mid. Reconnect uses jittered exponential backoff up to 30 seconds,
   resetting after 30 healthy seconds. Obsolete callbacks cannot emit data.
 - A network drop silences audio and clears the delayed segment. Reconnection
   resubscribes, then buffers five seconds from its first fresh tick. Missing data
@@ -136,15 +137,27 @@ retain their separate contracts below.
 
 ### Receive timeline and mapping
 
-- The first valid tick anchors a segment. Frame zero uses that tick; subsequent
-  cutoffs occur every 500 ms. The newest tick received within each interval is
-  used; there is no carried price in empty intervals. Exchange timestamps are
-  labels only. Monotonic browser receipt time determines the timeline.
+- The first valid bid/ask quote anchors a segment. Frame zero uses that quote;
+  subsequent cutoffs occur every 500 ms. Signal price is bid + (ask − bid) / 2;
+  spread is ask − bid. Every quote contributes count, extrema and absolute log-mid
+  movement; the closing mid/spread carry through empty beats, with quote age and a
+  carried flag. No quote means waiting, not a fabricated initial mid. Numeric feed
+  prices, quotes and sizes must be in [1e−12, 1e12], keeping derived arithmetic finite.
+  Books must satisfy bid ≤ ask. Invalid quotes are counted, never replaced by last trade price.
 - Every frame has a playback deadline exactly 5,000 ms after its source cutoff.
-  Frames are prepared during buffering, then scheduled up to 100 ms ahead on the
-  audio clock by a 25 ms timer, with 470 ms voice duration. No frame consumes ticks
+  Frames finalize once, as they enter the 100 ms audio scheduling window, driven
+  by a 25 ms timer with 470 ms voice duration. No frame consumes ticker quotes
   newer than its source cutoff. Ticks between cutoffs are quantized to the next
   cutoff (at most another 500 ms); network/exchange latency is additional.
+- The first quote pairs exchange time with monotonic receipt time for the segment.
+  Each trade uses its own exchange `time` minus that anchor to select a beat and
+  125 ms sixteenth. Intervals are right-closed: (0,125] is the first sixteenth,
+  (375,500] the fourth; time zero belongs to bootstrap frame zero. Batch arrival
+  order does not affect placement. Accept trades for an open beat until it finalizes;
+  never move late trades into another beat or revise an emitted frame. Count late
+  and out-of-window trades separately. Negative offsets and offsets more than
+  500 ms ahead of receipt are excluded. Maker SELL adds buyer-initiated volume;
+  maker BUY adds seller-initiated volume. Snapshot/deduplication rules still apply.
 - Late timers skip missed audio deadlines instead of shifting the delay or playing
   a catch-up burst. Suspended audio does not consume a backlog on return. Buffered
   and input frame bins are bounded; the visible chart retains up to 120 delayed
@@ -181,18 +194,61 @@ retain their separate contracts below.
   Historical mapping retains its original presets and normalization. Preset changes
   preserve the feed, source analysis and five-second timeline.
 
+### Bounded signal policy (`live-signal-v1`)
+
+Frames include `controls`; the existing v2 musical presets still map the mid-based
+features while the future composer consumes these controls. Historical mappings
+and v1/v2 replay definitions retain their contracts.
+
+| Control | Integer range | Target and output boundary |
+| --- | --- | --- |
+| energy | 0–4 | Maximum of volatility/baseline volatility and rate/baseline rate; every 16 beats |
+| contour | −8–7 | Fractionally differenced log mid (d=0.45), divided by volatility with a 0.5 bp floor; every beat |
+| tension | 0–7 | Positive volatility z-score + spread in bp; every 4 beats |
+| mood | 0–3 | 1.5 + five-minute log-return z-score; every 32 beats |
+| flow | −3–3 | 3 × (buyer volume − seller volume) / total volume, zero when no trades; every beat |
+| hits | four values, 0–3 | log2(count + 1) per exchange-time sixteenth; every sixteenth |
+| event | null / spike / drop | Existing preceding-return 3σ rule, latched until a 4-beat bar boundary |
+
+Bars are four beats (2 s), phrases 32 beats (16 s), independent of the legacy
+mapper's chord interval. Volatility is a 10 s EWMA of squared log-mid changes,
+including squared within-beat movement when larger; trade rate has the same 10 s
+smoother. Baseline variance, volatility mean/variance, rate and five-minute-return
+mean/variance use 1,800 s EWMAs initialized at zero. Energy ignores volatility
+at or below 0.5 bp and rate at or below one trade/s; baseline denominators use
+those floors. Mood remains neutral until 600 preceding beats exist. Its z-score
+denominator has a 0.5 bp × √600 floor; volatility z-score uses a 0.5 bp floor.
+
+Fractional differencing uses 600 coefficients, w₀=1 and
+wₖ=wₖ₋₁(k−1−d)/k, on log prices relative to the oldest retained log price so
+truncation cannot introduce a price-level bias. Startup uses available history.
+Every level target is clamped, then smoothed with α=1−exp(−Δt/1 s), then quantized
+using Schmitt transitions at current level ±0.65. Levels start at zero; five-minute
+mood starts toward its neutral target. Smoothing runs every beat, with output
+latches changing only at their listed boundaries; hits advance sequentially with
+Δt=125 ms. Events re-arm only without an event and below twice preceding σ
+(0.5 bp minimum); the latest pending event wins until its bar boundary.
+
+Reconnect/Stop resets all signal state. History holds at most 600 log mids, 120
+analysis frames and 134 pending aggregate bins. Background timer recovery skips
+expired audio and bounds frame rebuilding, preserving the last available quote.
+Debug exposes raw targets, smoothed levels, output latches, warmup sample count,
+baseline values, pending event/re-arm state and last boundary reason. Beat frames
+retain quote/trade aggregates, age and discontinuity flags; scheduler diagnostics
+expose pending-bin, late-trade and out-of-window counts.
+
 ### Capture and diagnostics
 
 Validated ticks are immutable plain values: provider/product, connection ID,
 ticker-channel sequence, exchange/receipt timestamps, monotonic session offset,
-price, and sequence-gap flag. Duplicate/out-of-order messages are rejected;
+last-trade price, mid, spread, spread bp, and sequence-gap flag. Duplicate/out-of-order messages are rejected;
 unrelated products are ignored. Heartbeat counters accept integer or decimal-string
 representations. Malformed payloads are counted and exposed, not silently recovered
 into fabricated prices.
 
 `createLivePlayback()` accepts injected clocks/timers and external audio contexts.
 Its `onTick` callback emits every accepted tick before coalescing, adding segment ID
-and session receipt offset. `onFrame` emits prepared frames with policy `live-v2`,
+and session receipt offset. `onFrame` emits finalized frames with policy `live-signal-v1`,
 segment ID, source/session offsets, intended playback offset, normalization
 references, and mapping. These callbacks are the GRO-27 recorder/replay seam; no
 recording persistence or export is implemented here.

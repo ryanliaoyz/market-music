@@ -3,7 +3,7 @@ import { test, expect } from "./fixtures.js";
 const inspect = page => page.evaluate(() => window.marketMusic.inspect());
 const message = (sequence, price) => ({ channel: "ticker", sequence_num: sequence,
   timestamp: "2026-10-30T12:00:00Z", events: [{ type: sequence === 0 ? "snapshot" : "update",
-    tickers: [{ product_id: "BTC-USD", price: String(price) }] }] });
+    tickers: [{ product_id: "BTC-USD", price: String(price), best_bid: String(price), best_ask: String(price) }] }] });
 const heartbeat = JSON.stringify({ channel: "heartbeats", sequence_num: 0, events: [{ heartbeat_counter: "1" }] });
 
 async function setup(page, { catalogFailure = false, clock = true } = {}) {
@@ -108,11 +108,16 @@ test("live Tone selection changes the next audible frame while buffered prices r
   const mock = await setup(page, { clock: false });
   await page.getByRole("radio", { name: "Ambient", exact: true }).check();
   await mock.start(); mock.send(0, 100);
-  await page.waitForTimeout(500); mock.send(1, 110);
+  await expect.poll(async () => (await inspect(page)).playback.bufferedMs,
+    { intervals: [25] }).toBeGreaterThanOrEqual(500);
+  mock.send(1, 110);
   await page.getByRole("radio", { name: "Bass-heavy", exact: true }).check();
-  await expect.poll(async () => (await inspect(page)).playback.audible?.mapping.presetId,
+  let state;
+  await expect.poll(async () => {
+    state = await inspect(page);
+    return state.playback.audible?.mapping.presetId;
+  },
     { intervals: [25], timeout: 8000 }).toBe("bass-heavy-v2");
-  const state = await inspect(page);
   expect(state.debug.presetId).toBe("bass-heavy-v2");
   expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(5000);
   expect(mock.sockets).toHaveLength(1);

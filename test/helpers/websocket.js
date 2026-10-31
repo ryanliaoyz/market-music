@@ -32,6 +32,6 @@ export function sockets() {
 
 export const ticker = (sequence_num = 0, price = "100", type = "update") => ({
   channel: "ticker", sequence_num, timestamp: "2026-10-30T12:00:00Z",
-  events: [{ type, tickers: [{ product_id: "BTC-USD", price }] }],
+  events: [{ type, tickers: [{ product_id: "BTC-USD", price, best_bid: price, best_ask: price }] }],
 });
 export const heartbeat = { channel: "heartbeats", sequence_num: 0, events: [{ heartbeat_counter: 1 }] };

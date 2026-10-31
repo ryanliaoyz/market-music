@@ -1,12 +1,14 @@
 import { musicalMapping } from "./live-music.js";
+import { createLiveControls } from "./live-controls.js";
 
-export const LIVE_POLICY = "live-v2";
+export const LIVE_POLICY = "live-signal-v1";
 export const FRAME_MS = 500;
 export const WINDOW_FRAMES = 120;
 
 export function createLiveFeatures() {
   let frames = [], pending = null, previous = null, id = 0, connection = null, broken = false;
   let degree = 7, chordDegree = 0;
+  const controls = createLiveControls();
   return {
     accept(tick) {
       if (connection !== tick.connectionId || tick.discontinuity) broken = true;
@@ -53,16 +55,28 @@ export function createLiveFeatures() {
       const meanSize = count ? tradeHistory.reduce((sum, frame) => sum + frame.tradeSize, 0) / count : 0;
       const sizeRatio = trades.count && meanSize ? trades.size / trades.count / meanSize : 1;
       const accent = trades.count ? Math.min(3, Math.max(1, Math.round(sizeRatio))) : 0;
-      const frame = { id: id++, slot, elapsedMs, exchangeTimeMs: tick?.exchangeTimeMs ?? null,
+       const frame = { id: id++, slot, elapsedMs, exchangeTimeMs: tick?.exchangeTimeMs ?? null,
         price: tick?.price ?? null, return: value, sigma, event, rollingVolatility,
         discontinuity: broken || !adjacent, references, policy: LIVE_POLICY, mapping: null,
-        degree, chordDegree, normalizedChange, range, trend, tradeCount: trades.count, tradeSize: trades.size, tradeRate, accent };
+         degree, chordDegree, normalizedChange, range, trend, tradeCount: trades.count, tradeSize: trades.size, tradeRate, accent };
+       if (tick) {
+         frame.controls = controls.sample(tick.price, tick.spread ?? 0, { ...trades,
+           buy: trades.buy ?? 0, sell: trades.sell ?? 0, hits: trades.hits ?? [0, 0, 0, 0] }, slot, event, trades.movement, sigma);
+         frame.mid = tick.price; frame.spread = tick.spread ?? 0;
+         frame.carried = trades.carried ?? false;
+         frame.quoteAgeMs = Math.max(0, elapsedMs - (tick.sourceOffsetMs ?? elapsedMs));
+         frame.aggregate = { quotes: trades.quotes ?? 1, low: trades.low ?? tick.price,
+           high: trades.high ?? tick.price, movement: trades.movement ?? 0,
+           buy: trades.buy ?? 0, sell: trades.sell ?? 0, hits: [...(trades.hits ?? [0, 0, 0, 0])],
+           tradeDiscontinuity: trades.tradeDiscontinuity ?? false };
+       }
       if (tick) frame.mapping = musicalMapping(frame, "classic-v2");
       frames = [...history, frame];
       previous = tick ? frame : null;
       broken = false;
       return frame;
     },
-    inspect: () => ({ policy: LIVE_POLICY, frames: structuredClone(frames), pending: pending !== null }),
+    inspect: () => ({ policy: LIVE_POLICY, frames: structuredClone(frames), pending: pending !== null, signal: controls.inspect() }),
+    inspectSignal: () => controls.inspect(),
   };
 }

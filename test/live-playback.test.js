@@ -15,7 +15,7 @@ function setup() {
   function jump(ms) { time += ms; context.currentTime = 10 + time / 1000; if (active) callback(); }
   return { player, context, ticks, frames, captures, cancellations, jump,
     advance(ms) { while (ms > 0) { const step = Math.min(ms, 25); jump(step); ms -= step; } },
-    tick(price = 100, connectionId = 1) { player.accept({ price, connectionId, exchangeTimeMs: time }); },
+    tick(price = 100, connectionId = 1) { player.accept({ price, mid: price, spread: 0, connectionId, exchangeTimeMs: time }); },
     active: () => active };
 }
 
@@ -72,36 +72,37 @@ test("switch replaces lookahead audio with the new preset without moving the liv
   await s.player.dispose();
 });
 
-test("cutoff-boundary ticks never play early and empty intervals are rests", async () => {
+test("cutoff-boundary ticks never play early and empty intervals carry mid", async () => {
   const s = setup(); await s.player.start(); s.tick(100);
   s.advance(499); s.tick(110); s.advance(2); s.tick(120);
   s.advance(4499);
   assert.equal(s.player.inspect().audible.price, 100);
   s.advance(500); assert.equal(s.player.inspect().audible.price, 110);
   s.advance(500); assert.equal(s.player.inspect().audible.price, 120);
-  s.advance(500); assert.equal(s.player.inspect().audible, null);
-  assert.equal(s.player.inspect().latest.price, null);
+  s.advance(500); assert.equal(s.player.inspect().audible.price, 120);
+  assert.equal(s.player.inspect().latest.carried, true);
   await s.player.dispose();
 });
 
 test("trade bins use source cutoffs, stay immutable and reset with reconnect", async () => {
   const s = setup(); await s.player.start(); s.tick(60000);
   s.advance(100);
-  for (let n = 0; n < 20; n++) s.player.acceptTrade({ connectionId: 1, size: 0.1 });
+  for (let n = 0; n < 20; n++) s.player.acceptTrade({ connectionId: 1, size: 0.1, exchangeTimeMs: 100, aggressor: 1 });
   s.tick(60000.01); s.advance(400);
+  s.advance(4900);
   const source = s.frames[1];
   assert.equal(source.tradeCount, 20); assert.equal(source.tradeSize, 2.0000000000000004);
   assert.equal(source.mapping.mask, 15);
   const saved = structuredClone(source);
-  s.advance(1); s.player.acceptTrade({ connectionId: 1, size: 3 }); s.tick(60000.02);
-  s.advance(499); assert.equal(s.frames[2].tradeCount, 1);
+  s.advance(1); s.player.acceptTrade({ connectionId: 1, size: 3, exchangeTimeMs: 100, aggressor: 1 });
+  s.advance(499); assert.equal(s.frames[2].tradeCount, 0);
   assert.deepEqual(s.frames[1], saved);
-  s.advance(4500);
-  assert.equal(s.player.inspect().audible.mapping.mask, 15);
+  assert.equal(s.player.inspect().aggregate.lateTrades, 1);
   assert.equal(s.player.inspect().audible.playbackOffsetMs - source.sessionOffsetMs, 5000);
   s.player.setConnection({ state: "reconnecting", reason: "lost" });
   s.player.acceptTrade({ connectionId: 1, size: 100 });
   s.tick(61000, 2);
+  s.advance(4900);
   assert.equal(s.frames.at(-1).tradeCount, 0); assert.equal(s.frames.at(-1).degree, 7);
   await s.player.dispose();
 });
@@ -123,10 +124,30 @@ test("quiet ticker stays playing; reconnect clears the old segment and refills f
   await s.player.dispose();
 });
 
+test("late batches enter their exchange beat until scheduling freezes the frame", async () => {
+  const s = setup(); await s.player.start(); s.tick(100);
+  s.advance(5399);
+  assert.equal(s.frames.length, 1);
+  s.player.acceptTrade({ connectionId: 1, exchangeTimeMs: 125, size: 2, aggressor: 1 });
+  s.player.acceptTrade({ connectionId: 1, exchangeTimeMs: 375, size: 1, aggressor: -1 });
+  s.advance(1);
+  const frame = s.frames[1], saved = structuredClone(frame);
+  assert.equal(frame.tradeCount, 2);
+  assert.equal(frame.tradeSize, 3);
+  assert.equal(frame.playbackOffsetMs, 5500);
+  s.player.acceptTrade({ connectionId: 1, exchangeTimeMs: 125, size: 100, aggressor: -1 });
+  s.player.setPreset("plucky-v2");
+  assert.deepEqual(s.frames[1], saved);
+  assert.equal(s.player.inspect().aggregate.lateTrades, 1);
+  assert.equal(s.captures.get("1:1").when, 15.5);
+  await s.player.dispose();
+});
+
 test("late timers skip expired audio without shifting the delay; queues and visible history stay bounded", async () => {
   const s = setup(); await s.player.start(); s.tick(100);
   s.jump(60000);
-  assert.equal(s.player.inspect().audio.lastScheduled, null);
+  assert.equal(s.player.inspect().audio.lastScheduled.when, 70);
+  assert.equal(s.captures.size, 1);
   assert.ok(s.player.inspect().queueSize <= 12);
   for (let i = 0; i < 300; i++) { s.tick(100 + i); s.advance(500); }
   assert.ok(s.player.inspect().frames.length <= 120);

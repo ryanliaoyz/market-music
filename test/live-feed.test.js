@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createLiveFeed, LIVE_URL } from "../src/live-feed.js";
 import { fakeTime, sockets, ticker, heartbeat } from "./helpers/websocket.js";
+import { createBeatAggregator } from "../src/live-aggregate.js";
+import { createLiveFeatures } from "../src/live-features.js";
 
 function setup() {
   const clock = fakeTime(), { Socket, instances } = sockets(), ticks = [], statuses = [], trades = [];
@@ -20,7 +22,7 @@ test("keyless subscriptions, snapshots, batches and capture timestamps", () => {
     { type: "subscribe", channel: "heartbeats" }]);
   clock.advance(100);
   const message = ticker(0, "100", "snapshot");
-  message.events[0].tickers.push({ product_id: "ETH-USD", price: "20" }, { product_id: "BTC-USD", price: "101" });
+  message.events[0].tickers.push({ product_id: "ETH-USD", price: "20" }, { product_id: "BTC-USD", price: "101", best_bid: "100", best_ask: "102" });
   socket.message(message);
   assert.deepEqual(ticks.map(t => t.price), [100, 101]);
   assert.equal(ticks[0].elapsedMs, 100);
@@ -42,12 +44,55 @@ test("market trades validate once, ignore snapshots, deduplicate and sequence in
   socket.message(batch(4, [{ ...trade, trade_id: "3" }]));
   assert.equal(trades.length, 2); assert.equal(ticks.length, 1);
   assert.equal(trades[0].size, 0.02); assert.ok(Object.isFrozen(trades[0]));
+  assert.equal(trades[0].aggressor, -1);
   assert.equal(trades[1].discontinuity, true);
   assert.equal(feed.inspect().rejected, 3); assert.equal(feed.inspect().tradeSequence, 4);
   socket.onclose(); clock.advance(1000);
   instances[1].message(batch(0, [trade]));
   assert.equal(trades.at(-1).connectionId, 2);
   feed.stop(); assert.equal(clock.count(), 0);
+});
+
+test("quote boundary rejects malformed books and flips maker SELL to buyer initiation", () => {
+  const { socket, ticks, trades, feed } = setup();
+  for (const [seq, bid, ask] of [[0, undefined, "100"], [1, "101", "100"], [2, "NaN", "100"], [3, "0", "100"], [4, "1e-300", "1e300"]]) {
+    const message = ticker(seq);
+    Object.assign(message.events[0].tickers[0], { best_bid: bid, best_ask: ask });
+    socket.message(message);
+  }
+  assert.equal(ticks.length, 0);
+  const message = ticker(5, "99");
+  Object.assign(message.events[0].tickers[0], { best_bid: "100", best_ask: "102" });
+  socket.message(message);
+  assert.equal(ticks[0].mid, 101); assert.equal(ticks[0].spread, 2);
+  socket.message({ channel: "market_trades", sequence_num: 0, events: [{ type: "update", trades: [{
+    product_id: "BTC-USD", trade_id: "buyer", price: "101", size: "2", side: "SELL", time: message.timestamp,
+  }] }] });
+  assert.equal(trades[0].aggressor, 1);
+  assert.equal(feed.inspect().rejected, 5);
+  feed.stop();
+});
+
+test("fuzzed exchange ticks pass through validation and aggregation with bounded controls", () => {
+  const s = setup(), aggregate = createBeatAggregator(Date.parse("2026-10-30T12:00:00Z")), features = createLiveFeatures();
+  let seed = 39, accepted = 0;
+  for (let slot = 0; slot < 1500; slot++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const price = slot % 13 === 0 ? "NaN" : String(10 ** ((seed / 2 ** 32) * 24 - 12));
+    s.socket.message(ticker(slot, price));
+    while (accepted < s.ticks.length) aggregate.tick(s.ticks[accepted++], slot * 500);
+    const beat = aggregate.sample(slot);
+    if (!beat.tick) continue;
+    features.accept(beat.tick);
+    const frame = features.sample(slot * 500, beat);
+    for (const [key, low, high] of [["energy", 0, 4], ["contour", -8, 7], ["tension", 0, 7], ["mood", 0, 3], ["flow", -3, 3]]) {
+      assert.ok(Number.isInteger(frame.controls[key]) && frame.controls[key] >= low && frame.controls[key] <= high);
+    }
+    assert.ok(frame.controls.hits.every(v => Number.isInteger(v) && v >= 0 && v <= 3));
+    assert.ok(Number.isFinite(frame.mapping.frequency));
+  }
+  assert.ok(s.feed.inspect().rejected > 0);
+  s.feed.stop();
 });
 
 test("invalid data is observable; duplicate/order detection is ticker-channel scoped", () => {

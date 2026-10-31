@@ -56,7 +56,7 @@ test("hiding live closes the socket, finishes capture and requires a fresh Start
       if (JSON.parse(data).type !== "subscribe") return;
       socket.send(JSON.stringify({ channel: "heartbeats", sequence_num: 0, events: [{ heartbeat_counter: "1" }] }));
       socket.send(JSON.stringify({ channel: "ticker", sequence_num: 0, timestamp: "2026-10-30T12:00:00Z",
-        events: [{ type: "snapshot", tickers: [{ product_id: "BTC-USD", price: "101" }] }] }));
+        events: [{ type: "snapshot", tickers: [{ product_id: "BTC-USD", price: "101", best_bid: "101", best_ask: "101" }] }] }));
     });
   });
   await page.goto("/");
