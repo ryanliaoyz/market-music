@@ -12,7 +12,8 @@ loader contracts, source choices, and session verification, and the
 `recording.js` consumes live schedule/cancel callbacks, including already queued
 lookahead at Record time. Capture starts on the next scheduled frame; cancelled
 frames are removed and preset replacements upsert the same schedule ID. Relative
-audio deadlines preserve rests. Capture ends at 30 seconds (at most 60 frames),
+delayed playback offsets preserve rests and remain stable when rescheduling converts
+deadlines to audio-clock time again. Capture ends at 30 seconds (at most 60 frames),
 manual stop, or the live segment/audio interruption boundary. Endpoints exclude
 unheard future frames; empty intervals do not create a clip. Completed clips stay
 in memory until replaced by another recording or the page is unloaded.

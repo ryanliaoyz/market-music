@@ -26,7 +26,11 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   await page.waitForTimeout(1100);
   await page.getByRole("button", { name: "Stop recording", exact: true }).click();
   await page.getByRole("button", { name: "Copy link" }).click();
-  const link = await page.getByLabel("Recording link").inputValue();
+  await expect(page.locator("#recording-error")).toBeEmpty();
+  const linkInput = page.getByLabel("Recording link");
+  await expect(linkInput).toBeVisible();
+  await expect(linkInput).toHaveValue(/^https?:\/\/.+#recording=v1\./);
+  const link = await linkInput.inputValue();
   await page.evaluate(link => { location.hash = new URL(link).hash; }, link);
   await expect(page.getByLabel("Mode", { exact: true })).toBeEnabled();
   await page.getByLabel("Mode", { exact: true }).selectOption("historical");
