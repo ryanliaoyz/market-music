@@ -13,7 +13,7 @@
   </header>
   <main>
     <label for="mode">Mode</label>
-    <select id="mode"><option value="historical">Historical</option><option value="live">Live crypto · BTC-USD</option></select>
+    <select id="mode"><option value="historical">Historical</option><option value="live">Live crypto · BTC-USD</option><option value="recording" disabled>Shared recording</option></select>
     <div id="historical-source">
       <label for="day">Trading day</label>
       <select id="day" aria-describedby="status" disabled></select>
@@ -43,6 +43,14 @@
       </div>
       <input id="seek" type="range" min="0" max="389" step="1" value="0">
     </fieldset>
+    <section id="recording-controls" hidden aria-label="Recording">
+      <button id="record" type="button" disabled>Record</button>
+      <output id="recording-status" aria-live="off"></output>
+      <button id="download-wav" type="button" disabled>Download WAV</button>
+      <button id="share-recording" type="button" disabled>Copy link</button>
+      <input id="recording-link" aria-label="Recording link" readonly hidden>
+      <p id="recording-error" role="status"></p>
+    </section>
     <figure id="chart" hidden>
       <svg viewBox="0 0 780 310" role="img" aria-labelledby="chart-title chart-description">
         <title id="chart-title">Session close price</title>
@@ -83,6 +91,7 @@
         <dt>Last transition</dt><dd data-debug="reason"></dd>
       </dl>
       <pre id="feed-debug" hidden></pre>
+      <pre id="recording-debug"></pre>
     </details>
   </main>
   <footer>

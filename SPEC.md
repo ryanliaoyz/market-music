@@ -7,6 +7,43 @@ The pipeline is `src/data.js` (validation) → `src/features.js` (pure calculati
 loader contracts, source choices, and session verification, and the
 [README](README.md) for running, testing, deployment, and manual checks.
 
+## Recording contracts
+
+`recording.js` consumes live schedule/cancel callbacks, including already queued
+lookahead at Record time. Capture starts on the next scheduled frame; cancelled
+frames are removed and preset replacements upsert the same schedule ID. Relative
+audio deadlines preserve rests. Capture ends at 30 seconds (at most 60 frames),
+manual stop, or the live segment/audio interruption boundary. Endpoints exclude
+unheard future frames; empty intervals do not create a clip. Completed clips stay
+in memory until replaced by another recording or the page is unloaded.
+
+`recording-codec.js` owns the `#recording=v1.` contract: unpadded base64url of a
+big-endian binary payload, at most 4,096 ASCII characters including the prefix.
+The four-byte header is product byte (1 = BTC-USD), uint16 duration milliseconds,
+and uint8 frame count. Each 24-byte frame contains uint16 relative milliseconds,
+float64 price, uint8 preset index in the existing versioned preset order, uint8
+MIDI note, uint8 harmony (255 = none), float64 intensity, uint8 event (0 = none,
+1 = drop, 2 = spike), and two reserved zero bytes. Decoder validation rejects
+unknown versions/products/presets/flags, incorrect lengths, unordered timestamps,
+out-of-clip offsets, nonfinite/out-of-range synthesis, and nonpositive prices
+(maximum 1e12). Decode validates once before passing typed clip values inward.
+
+The compact synthesis snapshot is deliberate: prices alone cannot reproduce the
+causal normalization preceding a mid-session capture. Version 1 fixes gain at
+0.11 and derives frequency, harmony frequency, filter and drive from captured
+notes/intensity. Preset IDs and version 1 synthesis semantics remain replay
+contracts. A format/synthesis change requires a new version.
+
+`recording-playback.js` schedules those mappings with the shared sound engine,
+requires a Play gesture, preserves gaps, skips late deadlines, and stops all tails
+at the endpoint. It never opens a feed. `wav.js` uses the same mappings with native
+OfflineAudioContext (mono, 44,100 Hz) and PCM16 WAV encoding. Tone's offline wrapper
+advances its own clock; frame cleanup waits until rendering finishes. WAV length
+is the clip duration rounded up to the next sample, without an added release tail.
+The URL, an in-memory clip, and temporary download Blob URLs are the only outputs;
+there is no backend, audio hosting, or browser persistence. Recording/debug state
+is inspectable in the existing Debug panel and `window.marketMusic.inspect()`.
+
 ## Live crypto contracts
 
 The live pipeline is `live-feed.js` (Coinbase validation/connection) →

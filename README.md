@@ -17,6 +17,8 @@ Start subscribes and buffers five seconds, then plays 500 ms musical frames on a
 timeline five seconds behind browser receipt time. A rolling 60-second chart follows
 that delayed timeline. Stop unsubscribes and silences audio; network drops reconnect
 and refill the buffer. The site remains entirely static on Vercel.
+Live intervals can be recorded in memory, downloaded as synthesized WAV, or shared
+as a self-contained replay link; nothing is uploaded or stored by the app.
 
 | Historical market feature | Mapping |
 | --- | --- |
@@ -78,6 +80,21 @@ than whole-day. See the [live contracts](SPEC.md#live-crypto-contracts).
 Kraken's public v2 ticker is a documented contingency if Coinbase is inaccessible
 in a target browser/region; no Kraken adapter or automatic provider switch ships.
 
+### Recording and sharing
+
+During delayed live playback, press **Record**. Capture starts with the next
+scheduled audible frame, then retains timing, silent gaps, prices, and each frame's
+audible preset. **Stop recording** seals the clip while live playback continues.
+Clips stop automatically after 30 seconds; live Stop, a connection interruption,
+or audio suspension also seals the clip. An empty capture produces no download.
+
+**Download WAV** renders the clip locally with OfflineAudioContext as mono 44.1 kHz
+16-bit PCM, cut at the clip endpoint. **Copy link** displays a selectable URL and
+copies it when clipboard access is available. Its versioned hash contains the
+recording, capped at 4 KiB. Opening a link loads a paused replay; press **Play** to
+hear it. Captured presets are fixed during replay. Replay needs no exchange access.
+Reloading loses an unshared live recording; save the WAV or link first.
+
 ### Diagnostics
 
 Expand **Debug panel** for the cursor's return, day σ, note/MIDI number, linear
@@ -94,6 +111,8 @@ the audible cursor; the chart and panel follow the cursor. See
 [debug contracts](SPEC.md#debug-panel-conventions) for fields and timing.
 
 In live mode Debug separates the newest received price from the delayed mapping.
+Recording diagnostics show state, frame/pending counts, duration, encoded size,
+export activity, and replay progress through the panel and `window.marketMusic.inspect()`.
 It also distinguishes the selected preset from the audible frame's captured preset,
 with scale, register, oscillator, filter cutoff and distortion diagnostics.
 It exposes connection/error/retry state, tick/heartbeat ages, buffer duration, queue
@@ -125,6 +144,9 @@ prices on the main chart.
   five seconds from the first fresh price. Return from a background tab and confirm
   there is no catch-up burst. Check Coinbase reachability and audible quality on
   speakers/headphones; these require a real feed/browser check.
+- Record while switching presets, stop capture, download WAV, and open the copied
+  link in a fresh tab. Compare replay/WAV sound and timing, including rests and the
+  endpoint. Check the 30-second automatic cap and recording interruption on Stop.
 
 ## Test
 
@@ -207,8 +229,7 @@ and deployed playback check are [pending](TODO.md#m7-browser-tests-and-deploy).
   browser receipt timing with a fixed five-second delay on a 500 ms frame grid;
   network/exchange latency is additional. No historical backfill is requested.
   Missing ticks are rests; geographic/network restrictions can make Coinbase
-   unavailable. Recording, WAV export, and share/replay links are
-  planned in [Version 2](TODO.md#version-2).
+   unavailable. Recordings retain sampled audible frames, not a raw trade history.
 - Automated browser coverage is Chromium only. Audio needs a user gesture;
   delayed/background timers skip expired beats rather than playing a burst later.
 

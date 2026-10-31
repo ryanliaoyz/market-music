@@ -11,7 +11,8 @@ export function createToneVoices(Tone, rawContext, output) {
     },
     set: (target, key, value) => Reflect.set(target, key, value, target),
   });
-  const context = new Tone.Context({ context: borrowed, lookAhead: 0 });
+  const offline = typeof rawContext.startRendering === "function";
+  const context = offline ? new Tone.OfflineContext(rawContext) : new Tone.Context({ context: borrowed, lookAhead: 0 });
   const voices = new Set();
 
   function play(mapping, preset, when, duration) {
@@ -31,12 +32,13 @@ export function createToneVoices(Tone, rawContext, output) {
       synths.push(synth);
     }
     const entry = { when, dispose() {
-      context.clearTimeout(entry.timer);
+      if (!offline) context.clearTimeout(entry.timer);
       for (const synth of synths) synth.dispose();
       filter.dispose(); distortion.dispose(); voices.delete(entry);
     } };
     voices.add(entry);
-    entry.timer = context.setTimeout(() => entry.dispose(), Math.max(0, when - rawContext.currentTime) + duration + preset.release);
+    // Tone advances offline timers before native rendering; disconnecting here would erase the graph.
+    if (!offline) entry.timer = context.setTimeout(() => entry.dispose(), Math.max(0, when - rawContext.currentTime) + duration + preset.release);
   }
 
   return {
@@ -46,5 +48,6 @@ export function createToneVoices(Tone, rawContext, output) {
     // The wrapper does not own the native context; the shared engine closes it.
     dispose() { this.stop(); context.dispose(); },
     inspect: () => ({ activeToneFrames: voices.size }),
+    render: () => context.render(),
   };
 }
