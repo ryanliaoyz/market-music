@@ -4,6 +4,53 @@ const WIDTH = 690;
 const HEIGHT = 240;
 const x = minute => LEFT + minute / 390 * WIDTH;
 
+export function createLiveVisuals(svg) {
+  const node = id => svg.querySelector(`[data-visual="${id}"]`);
+  let frame = null;
+  return {
+    render(snapshot) {
+      const frames = snapshot.frames;
+      const observed = frames.filter(item => item.price !== null);
+      const prices = observed.map(item => item.price);
+      const low = prices.length ? Math.min(...prices) : null;
+      const high = prices.length ? Math.max(...prices) : null;
+      const end = snapshot.latest?.slot ?? 0;
+      const px = slot => LEFT + (slot - end + 119) / 119 * WIDTH;
+      const py = price => TOP + HEIGHT * (low === high ? 0.5 : 1 - (price - low) / (high - low));
+      let previous = null;
+      node("line").setAttribute("d", observed.map(item => {
+        const command = previous !== null && item.slot === previous + 1 && !item.discontinuity ? "L" : "M";
+        previous = item.slot;
+        return `${command}${px(item.slot)},${py(item.price)}`;
+      }).join(" "));
+      node("high").textContent = high === null ? "—" : high.toFixed(2);
+      node("low").textContent = low === null ? "—" : low.toFixed(2);
+      node("reveal").setAttribute("width", WIDTH);
+      node("cursor").setAttribute("x1", LEFT + WIDTH);
+      node("cursor").setAttribute("x2", LEFT + WIDTH);
+      const latest = snapshot.latest;
+      node("point").setAttribute("visibility", latest?.price != null ? "visible" : "hidden");
+      if (latest?.price != null) {
+        node("point").setAttribute("cx", px(latest.slot));
+        node("point").setAttribute("cy", py(latest.price));
+      }
+      const mapping = snapshot.state === "playing" ? snapshot.audible?.mapping : latest?.mapping;
+      const intensity = mapping?.intensity ?? 0;
+      node("background").setAttribute("fill", `hsl(${220 - intensity * 195} 45% ${12 + intensity * 12}%)`);
+      const audible = snapshot.audible;
+      const phase = audible ? (snapshot.audio.currentTime - audible.when) / 0.47 : 1;
+      const event = audible?.event ?? null;
+      const flash = snapshot.state === "playing" && event && phase >= 0 ? Math.max(0, 1 - phase * 2) : 0;
+      node("flash").setAttribute("fill", event === "drop" ? "#ff8b91" : "#a5f3ce");
+      node("flash").setAttribute("opacity", flash * 0.35);
+      node("description").textContent = latest?.price != null ? `BTC-USD ${latest.price.toFixed(2)} USD.` : "Waiting for a fresh BTC-USD price.";
+      frame = { mode: "live", close: latest?.price ?? null, intensity, event, flash,
+        frameId: (snapshot.state === "playing" ? audible : latest)?.id ?? null };
+    },
+    inspect: () => frame && { ...frame },
+  };
+}
+
 export function createVisuals(features, svg) {
   const node = id => svg.querySelector(`[data-visual="${id}"]`);
   const prices = features.bars.map(bar => bar.close);

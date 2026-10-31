@@ -12,14 +12,19 @@
     <p class="intro">Hear a trading day unfold.</p>
   </header>
   <main>
-    <label for="day">Trading day</label>
-    <select id="day" aria-describedby="status" disabled></select>
+    <label for="mode">Mode</label>
+    <select id="mode"><option value="historical">Historical</option><option value="live">Live crypto · BTC-USD</option></select>
+    <div id="historical-source">
+      <label for="day">Trading day</label>
+      <select id="day" aria-describedby="status" disabled></select>
+    </div>
+    <p id="live-product" hidden>BTC-USD · Coinbase</p>
     <p id="status" role="status">Loading…</p>
     <fieldset id="controls" disabled>
       <legend>Playback</legend>
       <div class="playback-row">
         <button id="play" type="button">Play</button>
-        <div class="speed-control">
+        <div class="speed-control" id="historical-speed">
           <label for="speed">Speed</label>
           <select id="speed">
             <option value="0.5">0.5×</option>
@@ -30,7 +35,7 @@
           </select>
         </div>
       </div>
-      <div class="timeline-heading">
+      <div class="timeline-heading" id="historical-time">
         <label for="seek">Session time (New York)</label>
         <output id="time" for="seek" aria-live="off">09:30</output>
       </div>
@@ -60,13 +65,13 @@
     </figure>
     <details id="debug" hidden>
       <summary>Debug panel</summary>
-      <p>Current cursor mapping, not the audio scheduler's lookahead. Paused values
+      <p id="historical-debug-help">Current cursor mapping, not the audio scheduler's lookahead. Paused values
         preview the selected minute; rules list the bar's mappings, not a firing history.</p>
       <dl>
         <dt>Playback state</dt><dd data-debug="state"></dd>
-        <dt>Current bar · New York time</dt><dd data-debug="bar"></dd>
-        <dt>1-minute return</dt><dd data-debug="return"></dd>
-        <dt>Day σ · population standard deviation</dt><dd data-debug="sigma"></dd>
+        <dt id="debug-bar-label">Current bar · New York time</dt><dd data-debug="bar"></dd>
+        <dt id="debug-return-label">1-minute return</dt><dd data-debug="return"></dd>
+        <dt id="debug-sigma-label">Day σ · population standard deviation</dt><dd data-debug="sigma"></dd>
         <dt>Chosen note</dt><dd data-debug="note"></dd>
         <dt>Lead volume gain · linear</dt><dd data-debug="gain"></dd>
         <dt>Distortion drive · 0–24</dt><dd data-debug="drive"></dd>
@@ -74,9 +79,11 @@
         <dt>Waiting for</dt><dd data-debug="waiting"></dd>
         <dt>Last transition</dt><dd data-debug="reason"></dd>
       </dl>
+      <pre id="feed-debug" hidden></pre>
     </details>
   </main>
   <footer>
+    <p>Live BTC-USD prices: <a href="https://www.coinbase.com/advanced-trade">Coinbase Advanced Trade</a>.</p>
     <p>Data from the HF Data Library (Elkassabgi 2026), <a href="https://hfdatalibrary.com">https://hfdatalibrary.com</a>, CC BY 4.0.</p>
     <p>Data provided for free by IEX. By accessing or using IEX Historical Data, you agree to the <a href="https://www.iex.io/legal/hist-data-terms">IEX Historical Data Terms of Use</a>.</p>
   </footer>
