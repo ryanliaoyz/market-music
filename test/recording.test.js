@@ -5,6 +5,9 @@ import { encodeRecording, decodeRecording, recordingMapping } from "../src/recor
 import { renderWav, encodeWav } from "../src/wav.js";
 import { createRecordingPlayback } from "../src/recording-playback.js";
 import { AudioContext } from "./helpers/audio.js";
+import { fakeTone } from "./helpers/tone.js";
+import { musicalMapping } from "../src/live-music.js";
+import { LIVE_PRESETS } from "../src/presets.js";
 
 const frame = (when = 10, presetId = "classic-v1") => ({ scheduleId: `1:${when}`, when, playbackOffsetMs: Math.round(when * 1000), price: 100, presetId,
   event: null, mapping: { note: 60, harmony: 64, intensity: 0.25 } });
@@ -42,6 +45,9 @@ test("preset rescheduling clock jitter preserves nonnegative grid timing and an 
 });
 
 test("codec retains exact values and full clips fit 4 KiB", () => {
+  const legacy = "#recording=v1.AQPoAQAAQFkAAAAAAAAAPEA_0AAAAAAAAAAAAA";
+  assert.deepEqual(decodeRecording(legacy), clip);
+  assert.equal(encodeRecording(clip), legacy);
   assert.deepEqual(decodeRecording(encodeRecording(clip)), clip);
   const full = { durationMs: 30000, frames: Array.from({ length: 60 }, (_, n) => ({ ...clip.frames[0], offsetMs: n * 500, price: 999999.123456 })) };
   assert.ok(encodeRecording(full).length <= 4096);
@@ -97,5 +103,45 @@ test("replay creates audio only on Play and a blocked unlock remains retryable",
   await assert.rejects(replay.play(), /paused by the browser/);
   assert.equal(replay.inspect().state, "stopped");
   assert.equal(replay.inspect().reason, "resume-failed");
+  await replay.dispose();
+});
+
+test("v2 captures resolved music, fits maximum clips, and rejects invalid pattern payloads", () => {
+  const recorder = createRecorder(); recorder.start(10);
+  for (let n = 0; n < 60; n++) {
+    const presetId = LIVE_PRESETS[n % 4].id;
+    recorder.schedule({ ...frame(10 + n / 2, presetId), mapping: musicalMapping({ degree: 7, chordDegree: 3, tradeRate: 20, accent: 3 }, presetId) });
+  }
+  recorder.update(40);
+  const hash = encodeRecording(recorder.clip);
+  assert.ok(hash.startsWith("#recording=v2.")); assert.ok(hash.length < 4096);
+  assert.deepEqual(decodeRecording(hash), recorder.clip);
+  for (const change of [{ mask: 0 }, { accent: 4 }, { chord: [48, 49, 55] }, { note: 61 }, { intensity: 0.2 }]) {
+    assert.throws(() => encodeRecording({ durationMs: 500, frames: [{ ...recorder.clip.frames[0], ...change }] }));
+  }
+  const bytes = Uint8Array.from(atob(hash.split(".")[1].replaceAll("-", "+").replaceAll("_", "/")), c => c.charCodeAt(0));
+  for (const [index, value] of [[14, 4], [28, 128], [31, 0], [32, 4]]) {
+    const changed = bytes.slice(); changed[index] = value;
+    assert.throws(() => decodeRecording("#recording=v2." + btoa(String.fromCharCode(...changed)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")));
+  }
+});
+
+test("v2 replay and WAV schedule identical captured notes, accents and sub-frame timing", async () => {
+  const presetId = "plucky-v2", mapping = musicalMapping({ degree: 7, chordDegree: 3, tradeRate: 20, accent: 2 }, presetId);
+  const musicalClip = decodeRecording(encodeRecording({ durationMs: 700, frames: [{ offsetMs: 0, price: 60000, presetId,
+    note: mapping.note, harmony: mapping.harmony, intensity: mapping.intensity, chord: mapping.chord, mask: mapping.mask, accent: mapping.accent, event: null }] }));
+  const tone = fakeTone(), offlineTone = fakeTone();
+  const replay = createRecordingPlayback(musicalClip, { context: new AudioContext(), tone, setInterval: () => 1, clearInterval() {} });
+  await replay.play();
+  class OfflineContext extends AudioContext {
+    constructor(channels, length, sampleRate) { super(); this.currentTime = 0; this.length = length; this.sampleRate = sampleRate; }
+    async startRendering() { return { sampleRate: this.sampleRate, getChannelData: () => new Float32Array(this.length) }; }
+  }
+  await renderWav(musicalClip, { OfflineContext, tone: offlineTone });
+  const notes = library => library.nodes.filter(node => node.trigger);
+  const start = notes(tone)[0].trigger[2];
+  assert.deepEqual(notes(tone).map(node => [node.trigger[0], node.trigger[1], Math.round((node.trigger[2] - start) * 1000), node.volume.value]),
+    notes(offlineTone).map(node => [node.trigger[0], node.trigger[1], Math.round(node.trigger[2] * 1000), node.volume.value]));
+  assert.deepEqual(recordingMapping(musicalClip.frames[0]).chord, mapping.chord);
   await replay.dispose();
 });

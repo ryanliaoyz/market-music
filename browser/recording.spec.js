@@ -16,9 +16,13 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
         events: [{ type: "snapshot", tickers: [{ product_id: "BTC-USD", price: "101" }] }] }));
     });
     let sequence = 1;
+    let tradeSequence = 0;
     const timer = setInterval(() => {
       socket.send(JSON.stringify({ channel: "heartbeats", sequence_num: 0, events: [{ heartbeat_counter: "1" }] }));
       socket.send(JSON.stringify({ channel: "ticker", sequence_num: sequence++, timestamp: "2026-10-30T12:00:00Z", events: [{ type: "update", tickers: [{ product_id: "BTC-USD", price: "102" }] }] }));
+      socket.send(JSON.stringify({ channel: "market_trades", sequence_num: tradeSequence++, events: [{ type: "update",
+        trades: Array.from({ length: 10 }, (_, n) => ({ product_id: "BTC-USD", trade_id: `${tradeSequence}:${n}`,
+          price: "102", size: "0.01", side: "BUY", time: "2026-10-30T12:00:00Z" })) }] }));
     }, 250);
     socket.onClose(() => clearInterval(timer));
   });
@@ -27,14 +31,14 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   await expect(page.getByRole("button", { name: "Record", exact: true })).toBeEnabled({ timeout: 10000 });
   await page.getByRole("button", { name: "Record", exact: true }).click();
   await expect.poll(async () => (await inspect(page)).recording.frames).toBeGreaterThan(0);
-  await page.getByLabel("Sound preset").selectOption("plucky-v1");
+  await page.getByLabel("Sound preset").selectOption("plucky-v2");
   await page.waitForTimeout(1100);
   await page.getByRole("button", { name: "Stop recording", exact: true }).click();
   await page.getByRole("button", { name: "Copy link" }).click();
   await expect(page.locator("#recording-error")).toBeEmpty();
   const linkInput = page.getByLabel("Recording link");
   await expect(linkInput).toBeVisible();
-  await expect(linkInput).toHaveValue(/^https?:\/\/.+#recording=v1\./);
+  await expect(linkInput).toHaveValue(/^https?:\/\/.+#recording=v2\./);
   const link = await linkInput.inputValue();
   expect(await page.evaluate(() => window.copiedLink)).toBe(link);
   await page.evaluate(link => { location.hash = new URL(link).hash; }, link);
@@ -42,7 +46,8 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   await page.getByLabel("Mode", { exact: true }).selectOption("historical");
   const fresh = await context.newPage();
   await fresh.goto(link);
-  expect((await inspect(fresh)).sharedClip.frames.some(frame => frame.presetId === "plucky-v1")).toBe(true);
+  expect((await inspect(fresh)).sharedClip.frames.some(frame => frame.presetId === "plucky-v2")).toBe(true);
+  expect((await inspect(fresh)).sharedClip.frames.some(frame => frame.mask === 15 && frame.accent > 0)).toBe(true);
   const downloaded = fresh.waitForEvent("download"); await fresh.getByRole("button", { name: "Download WAV" }).click();
   const download = await downloaded; expect(await download.failure()).toBeNull();
   const bytes = await readFile(await download.path());
@@ -64,16 +69,19 @@ test("recording controls work while the historical catalog is stalled", async ({
   expect(await (await downloaded).failure()).toBeNull();
 });
 
-test("shared links replay and render every preset offline without exchange access", async ({ page }) => {
+for (const version of [1, 2]) test(`v${version} shared links replay and render every preset offline without exchange access`, async ({ page, context }) => {
   await page.goto("/");
-  const hash = await page.evaluate(async () => {
+  const hash = await page.evaluate(async version => {
     const { encodeRecording } = await import("/src/recording-codec.js");
-    return encodeRecording({ durationMs: 2400, frames: ["classic-v1", "ambient-v1", "plucky-v1", "bass-heavy-v1"].map((presetId, n) =>
-      ({ offsetMs: n * 500, price: 100 + n, presetId, note: 60, harmony: 64, intensity: 0.5, event: n === 2 ? "spike" : null })) });
-  });
+    return encodeRecording({ durationMs: 2400, frames: ["classic", "ambient", "plucky", "bass-heavy"].map((name, n) =>
+      ({ offsetMs: n * 500, price: 100 + n, presetId: `${name}-v${version}`, note: 60,
+        harmony: version === 1 ? 64 : 48, intensity: version === 1 ? 0.5 : 1,
+        event: n === 2 ? "spike" : null, ...(version === 2 ? { chord: [48, 51, 55], mask: 1, accent: 3 } : {}) })) });
+  }, version);
   let sockets = 0; page.on("websocket", () => sockets++);
   await page.goto("/" + hash);
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled();
+  await context.setOffline(true);
   const downloaded = page.waitForEvent("download"); await page.getByRole("button", { name: "Download WAV" }).click();
   const download = await downloaded; expect(await download.failure()).toBeNull();
   const bytes = await readFile(await download.path());
@@ -81,9 +89,10 @@ test("shared links replay and render every preset offline without exchange acces
   await expect.poll(async () => (await inspect(page)).recording.exporting).toBe(false);
   await expect(page.locator("#recording-error")).toBeEmpty();
   await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect.poll(async () => (await inspect(page)).playback.audio.lastScheduled?.presetId).toBe("ambient-v1");
+  await expect.poll(async () => (await inspect(page)).playback.audio.lastScheduled?.presetId).toBe(`ambient-v${version}`);
   await expect.poll(async () => (await inspect(page)).playback.reason).toBe("replay-ended");
   expect(sockets).toBe(0);
+  await context.setOffline(false);
   await page.goto("/#recording=v1.invalid");
   await expect(page.locator("#recording-error")).toContainText("Unable to open recording");
 });

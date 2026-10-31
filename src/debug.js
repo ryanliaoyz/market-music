@@ -22,14 +22,18 @@ export function createLiveDebugPanel(root) {
       write("note", mapping ? `${NOTES[mapping.note % 12]}${Math.floor(mapping.note / 12) - 1} (MIDI ${mapping.note})` : "n/a");
       write("gain", decimal(mapping?.gain ?? null));
       write("drive", decimal(mapping?.drive ?? null));
-      write("rules", mapping?.rules.join(", ") || "none");
+      const music = current?.degree === undefined ? "" : ` · degree ${current.degree}; Δ/range ${current.normalizedChange.toFixed(2)}; trend ${current.trend}; trades/s ${current.tradeRate.toFixed(1)}`;
+      write("rules", (mapping?.rules.join(", ") || "none") + music);
       write("waiting", snapshot.waiting ?? "none");
       write("reason", snapshot.reason);
       frame = { frameId: current?.id ?? null, note: mapping?.note ?? null, gain: mapping?.gain ?? null,
         presetId: mapping?.presetId ?? null, selectedPresetId: snapshot.presetId,
         scale: mapping?.scale ?? null, root: mapping?.root ?? null, oscillator: mapping?.oscillator ?? null,
         cutoff: mapping?.cutoff ?? null, drive: mapping?.drive ?? null,
-        references: current?.references ?? null, policy: snapshot.policy };
+        references: current?.references ?? null, policy: snapshot.policy,
+        music: current ? { degree: current.degree, normalizedChange: current.normalizedChange,
+          range: current.range, trend: current.trend, chord: mapping?.chord, mask: mapping?.mask,
+          tradeRate: current.tradeRate, tradeSize: current.tradeSize, accent: mapping?.accent } : null };
     },
     inspect: () => structuredClone(frame),
   };

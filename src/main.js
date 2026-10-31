@@ -5,7 +5,7 @@ import { createVisuals, createLiveVisuals } from "./visuals.js";
 import { createDebugPanel, createLiveDebugPanel } from "./debug.js";
 import { createLiveFeed } from "./live-feed.js";
 import { createLivePlayback } from "./live-playback.js";
-import { PRESETS } from "./presets.js";
+import { PRESETS, LIVE_PRESETS } from "./presets.js";
 import { createRecorder } from "./recording.js";
 import { encodeRecording, decodeRecording } from "./recording-codec.js";
 import { createRecordingPlayback } from "./recording-playback.js";
@@ -188,6 +188,10 @@ async function selectMode() {
   loading = true; error = null;
   const live = mode.value === "live";
   const replay = mode.value === "recording";
+  const selectedIndex = preset.selectedIndex;
+  preset.replaceChildren();
+  for (const value of live ? LIVE_PRESETS : PRESETS) preset.add(new Option(value.label, value.id));
+  preset.selectedIndex = Math.max(0, selectedIndex);
   configureMode(live || replay);
   preset.disabled = replay;
   await previous?.dispose();
@@ -212,6 +216,7 @@ async function selectMode() {
     onBoundary: recorder.boundary, onChange: snapshot => { if (request === selection) render(snapshot); } });
   feed = createLiveFeed({
     onTick: tick => { if (request === selection) playback.accept(tick); },
+    onTrade: trade => { if (request === selection) playback.acceptTrade(trade); },
     onStatus: snapshot => {
       if (request !== selection) return;
       error = snapshot.error;

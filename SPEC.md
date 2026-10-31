@@ -15,6 +15,7 @@ The service worker stays at the app root so its scope covers the shell. See the
 [production path and acceptance checklist](README.md#deploy).
 
 Release v2 does not change the `#recording=v1.` format or its synthesis semantics.
+Version 2.1 adds musical live synthesis and `#recording=v2.` while retaining v1 replay.
 Worker cache versions track shell changes independently of release numbering;
 documentation-only changes do not require a cache bump.
 
@@ -40,11 +41,23 @@ unknown versions/products/presets/flags, incorrect lengths, unordered timestamps
 out-of-clip offsets, nonfinite/out-of-range synthesis, and nonpositive prices
 (maximum 1e12). Decode validates once before passing typed clip values inward.
 
+Version 2 uses the same header, limits and first 24 frame bytes, with preset indices
+in `LIVE_PRESETS` order. Each 29-byte frame adds three uint8 chord MIDI notes,
+a uint8 four-step rhythm mask and uint8 accent (0–3). Reserved bytes stay zero.
+Notes must belong to the preset scale, the mask to its versioned rhythm options,
+harmony must equal the first chord note, and intensity must equal accent / 3.
+A clip cannot mix synthesis versions. Sixty frames fit comfortably below 4 KiB.
+The decoder accepts both prefixes; encoding chooses from the captured preset version.
+
 The compact synthesis snapshot is deliberate: prices alone cannot reproduce the
 causal normalization preceding a mid-session capture. Version 1 fixes gain at
 0.11 and derives frequency, harmony frequency, filter and drive from captured
 notes/intensity. Preset IDs and version 1 synthesis semantics remain replay
 contracts. A format/synthesis change requires a new version.
+
+`live-music.js` expands resolved v2 notes/chords/masks/accents identically for live,
+replay and WAV; it does not recompute market history. Existing v1 preset definitions
+and synthesis remain frozen. New musical definitions require new preset IDs.
 
 `recording-playback.js` schedules those mappings with the shared sound engine,
 requires a Play gesture, preserves gaps, skips late deadlines, and stops all tails
@@ -91,7 +104,7 @@ retain their separate contracts below.
 
 - Selecting Live does not connect. Start resumes audio from its user gesture and
   opens `wss://advanced-trade-ws.coinbase.com`, subscribing separately to public
-  `ticker` for `BTC-USD` and `heartbeats`, with no JWT. Stop sends unsubscribe
+  `ticker` and `market_trades` for `BTC-USD`, plus `heartbeats`, with no JWT. Stop sends unsubscribe
   messages when open, closes the socket, cancels retries/audio, and clears the
   session. Mode selection is disabled until Stop. There is no live Pause.
 - States are stopped, starting, waiting for first price, buffering, playing,
@@ -123,17 +136,36 @@ retain their separate contracts below.
   and input frame bins are bounded; the visible chart retains up to 120 delayed
   frames, with gaps across missing slots, reconnects, and sequence discontinuities.
 - Return is current price / preceding adjacent frame price − 1, otherwise null.
-  Pitch uses the trailing 60-second observed range (flat → midpoint). Realized
+  Musical pitch starts at degree 7 in C natural minor and moves by signed 1–3 scale
+  degrees per adjacent return, normalized by the largest absolute return in the
+  current and preceding 39 slots (20 seconds). Magnitudes below 0.1 of that range
+  hold the degree; flat/gapped returns also hold. Degrees stay within 0–14 by octave
+  wrapping (seven degrees), avoiding saturation during a sustained trend. Realized
   volatility is the root sum of squared available returns over ten frame slots;
   intensity uses the trailing peak. Event threshold is 3× population σ of preceding
   available returns in the window; require ten prior returns and positive σ.
   No future tick can revise an emitted mapping.
-- Live gain is 0.11. `ticker.volume_24_h` is not trade size, so live has no
-  volume-derived gain, VWAP drone, or opening gong. Scale, harmony, timbre, and
-  spike/drop hits reuse `mapSoundFrame()` and `engine.playMapping()`. Historical
-  `createSoundScore()`/`playBar()` use the same mapping/synthesis with their original
-   normalization. Preset selection changes synthesis and scale without changing
-   the feed, causal normalization, or five-second timeline.
+- Trend sums current and preceding 15 slots' returns, with a neutral band of half
+  the recent return range. At eight-slot (four-second) bar boundaries, rising,
+  falling and neutral trends select degree progressions `[0,3,4,0]`, `[0,5,3,4]`,
+  `[0,3,0,4]` respectively. Triads stack scale degrees 0/2/4 above that root.
+- Trade rate uses the current and preceding seven slots, in trades/second. Rates
+  above 2 and 8 select medium/high density. Average trade size relative to the
+  preceding slots' mean selects rounded accents 1–3 (no trades → 0; first → 1).
+  `market_trades` snapshots are ignored rather than played as fresh activity;
+  updates validate product, ID, time, side, positive price and size. Independent
+  channel sequencing rejects repeats; a bounded 2,048-ID set rejects overlapping
+  trade batches. Reconnect clears trade bins and analysis with the price segment.
+- `LIVE_PRESETS` owns four immutable v2 definitions. Classic masks are `[1,5,15]`
+  with chord stabs; Ambient `[1,1,5]` with sustained texture; Plucky `[1,9,15]`
+  with short chord arpeggios; Bass-heavy `[1,3,11]` with low melody and offbeat chords.
+  Masks address four 125 ms subdivisions in each frame, at most four lead and three
+  chord voices. Preset gates and texture affect timing as well as timbre.
+- Base live gain is 0.11; accents multiply lead gain by 1 + accent / 6, with quiet
+  chord voices. There is no VWAP drone or opening gong. Spike/drop hits remain.
+  `live-music.js` maps prepared features; `engine.playMapping()` schedules them.
+  Historical mapping retains its original presets and normalization. Preset changes
+  preserve the feed, source analysis and five-second timeline.
 
 ### Capture and diagnostics
 
@@ -146,7 +178,7 @@ into fabricated prices.
 
 `createLivePlayback()` accepts injected clocks/timers and external audio contexts.
 Its `onTick` callback emits every accepted tick before coalescing, adding segment ID
-and session receipt offset. `onFrame` emits prepared frames with policy `live-v1`,
+and session receipt offset. `onFrame` emits prepared frames with policy `live-v2`,
 segment ID, source/session offsets, intended playback offset, normalization
 references, and mapping. These callbacks are the GRO-27 recorder/replay seam; no
 recording persistence or export is implemented here.

@@ -1,3 +1,4 @@
+import { patternVoices } from "./live-music.js";
 // Tone is loaded as a pinned local browser script; this module stays Node-importable.
 export function createToneVoices(Tone, rawContext, output) {
   if (!Tone) throw new Error("Tone.js is unavailable. Reload the page to retry.");
@@ -21,14 +22,17 @@ export function createToneVoices(Tone, rawContext, output) {
     filter.connect(distortion);
     distortion.connect(output);
     const synths = [];
-    for (const [hz, gain] of [[mapping.frequency, mapping.gain], [mapping.harmonyFrequency, mapping.gain * 0.35]]) {
+    const notes = mapping.mask !== undefined ? patternVoices(mapping, duration) :
+      [[mapping.frequency, mapping.gain], [mapping.harmonyFrequency, mapping.gain * 0.35]]
+        .map(([hz, gain]) => ({ hz, gain, offset: 0, duration: duration * 0.7 }));
+    for (const { hz, gain, offset, duration: gate } of notes) {
       if (hz === null || gain === 0) continue;
       const synth = new Tone.Synth({ context, oscillator: { type: preset.oscillator },
         envelope: { attack: Math.min(preset.attack, duration / 4), decay: 0.08,
-          sustain: preset.id === "plucky-v1" ? 0.1 : 0.6, release: preset.release } });
+          sustain: preset.id.startsWith("plucky-") ? 0.1 : 0.6, release: preset.release } });
       synth.volume.value = 20 * Math.log10(gain);
       synth.connect(filter);
-      synth.triggerAttackRelease(hz, duration * 0.7, when);
+      synth.triggerAttackRelease(hz, gate, when + offset);
       synths.push(synth);
     }
     const entry = { when, dispose() {
