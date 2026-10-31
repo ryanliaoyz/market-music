@@ -211,6 +211,12 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
       }
     },
     playMapping,
+    setEndpoint(time) {
+      master.gain.cancelScheduledValues(context.currentTime);
+      master.gain.setValueAtTime(0.6, context.currentTime);
+      master.gain.setValueAtTime(0, time);
+    },
+    renderOffline() { return toneVoices ? toneVoices.render() : context.startRendering(); },
     async resume() {
       assertOpen();
       waiting = "audio-context-resume";

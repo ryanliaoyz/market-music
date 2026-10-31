@@ -30,7 +30,7 @@
 
 ### M3: Recording and replay (GRO-27)
 
-- [ ] Listeners can record a live session and download its audio as WAV.
-- [ ] A share link replays the recorded prices with their captured timing.
+- [x] Listeners can record a live session and download its audio as WAV.
+- [x] A share link replays the recorded prices with their captured timing.
 
 ## Later
