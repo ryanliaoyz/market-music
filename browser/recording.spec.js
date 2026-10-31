@@ -5,6 +5,11 @@ import { encodeRecording } from "../src/recording-codec.js";
 const inspect = page => page.evaluate(() => window.marketMusic.inspect());
 
 test("record delayed live, export WAV, and replay a self-contained link", async ({ page, context }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: async text => { window.copiedLink = text; } }
+    });
+  });
   await page.routeWebSocket("wss://advanced-trade-ws.coinbase.com/**", socket => {
     socket.onMessage(data => {
       if (JSON.parse(data).channel === "ticker") socket.send(JSON.stringify({ channel: "ticker", sequence_num: 0, timestamp: "2026-10-30T12:00:00Z",
@@ -31,6 +36,7 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   await expect(linkInput).toBeVisible();
   await expect(linkInput).toHaveValue(/^https?:\/\/.+#recording=v1\./);
   const link = await linkInput.inputValue();
+  expect(await page.evaluate(() => window.copiedLink)).toBe(link);
   await page.evaluate(link => { location.hash = new URL(link).hash; }, link);
   await expect(page.getByLabel("Mode", { exact: true })).toBeEnabled();
   await page.getByLabel("Mode", { exact: true }).selectOption("historical");
