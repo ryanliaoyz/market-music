@@ -88,6 +88,8 @@ test("Start subscribes, buffers five seconds, and renders only delayed prices; S
 });
 
 test("real Web Audio and the debug/chart mapping follow the delayed frame", async ({ page }) => {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   const mock = await setup(page, { clock: false }); await mock.start();
   await page.getByText("Debug panel", { exact: true }).click();
   mock.send(0, 101);

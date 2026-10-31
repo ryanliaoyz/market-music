@@ -138,10 +138,12 @@ test("v2 replay and WAV schedule identical captured notes, accents and sub-frame
     async startRendering() { return { sampleRate: this.sampleRate, getChannelData: () => new Float32Array(this.length) }; }
   }
   await renderWav(musicalClip, { OfflineContext, tone: offlineTone });
-  const notes = library => library.nodes.filter(node => node.trigger);
-  const start = notes(tone)[0].trigger[2];
-  assert.deepEqual(notes(tone).map(node => [node.trigger[0], node.trigger[1], Math.round((node.trigger[2] - start) * 1000), node.volume.value]),
-    notes(offlineTone).map(node => [node.trigger[0], node.trigger[1], Math.round(node.trigger[2] * 1000), node.volume.value]));
+  const notes = library => library.nodes.flatMap(node => node.envelope.notes
+    .map(([gate, time]) => [node.frequency.history.find(event => event[2] === time)[1], gate, time,
+      node.volume.history.find(event => event[2] === time)[1]]));
+  const start = Math.min(...notes(tone).map(note => note[2]));
+  assert.deepEqual(notes(tone).map(([hz, gate, time, gain]) => [hz, gate, Math.round((time - start) * 1000), gain]),
+    notes(offlineTone).map(([hz, gate, time, gain]) => [hz, gate, Math.round(time * 1000), gain]));
   assert.deepEqual(recordingMapping(musicalClip.frames[0]).chord, mapping.chord);
   await replay.dispose();
 });
