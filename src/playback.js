@@ -1,12 +1,14 @@
 import { createSoundEngine } from "./sound.js";
+import { DEFAULT_PRESET_ID, getPreset } from "./presets.js";
 
 export const DEFAULT_SPEED = 1.625;
 export const SPEEDS = [0.5, 1, DEFAULT_SPEED, 2, 4];
 
 export function createPlayback(features, {
-  context, setInterval: repeat = globalThis.setInterval,
+  context, presetId = DEFAULT_PRESET_ID, tone, setInterval: repeat = globalThis.setInterval,
   clearInterval: cancel = globalThis.clearInterval, onChange = () => {},
 } = {}) {
+  getPreset(presetId);
   const indices = new Map(features.bars.map((bar, index) => [bar.minute, index]));
   let engine = null;
   let state = "paused";
@@ -29,7 +31,7 @@ export function createPlayback(features, {
     const position = cursor();
     const currentMinute = Math.min(389, Math.floor(position));
     return {
-      session: features.session.id, state, speed, position,
+      session: features.session.id, state, speed, position, presetId,
       minute: currentMinute, barIndex: indices.get(currentMinute) ?? null,
       nextMinute, reason, waiting: state === "starting" ? "audio-resume" :
         state === "playing" ? "audio-clock" : null,
@@ -82,7 +84,7 @@ export function createPlayback(features, {
       if (state === "disposed") throw new Error("Playback is disposed");
       if (state === "playing" || state === "starting") return;
       if (state === "ended") minute = 0;
-      engine ??= createSoundEngine(features, { context });
+      engine ??= createSoundEngine(features, { context, presetId, tone });
       const request = ++generation;
       state = "starting";
       reason = "play-requested";
@@ -127,6 +129,18 @@ export function createPlayback(features, {
       }
       if (playing) start();
       reason = "speed-change";
+      notify();
+    },
+    setPreset(id) {
+      getPreset(id);
+      if (state === "disposed") throw new Error("Playback is disposed");
+      const playing = state === "playing", ended = state === "ended";
+      stop("preset-change");
+      presetId = id;
+      engine?.setPreset(id);
+      if (ended) { state = "ended"; minute = 390; }
+      if (playing) start();
+      reason = "preset-change";
       notify();
     },
     async dispose() {

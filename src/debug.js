@@ -1,4 +1,5 @@
 import { createSoundScore } from "./sound.js";
+import { DEFAULT_PRESET_ID } from "./presets.js";
 
 const NOTES = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
 const percent = value => value === null ? "n/a" : `${(value * 100).toFixed(4)}%`;
@@ -25,6 +26,9 @@ export function createLiveDebugPanel(root) {
       write("waiting", snapshot.waiting ?? "none");
       write("reason", snapshot.reason);
       frame = { frameId: current?.id ?? null, note: mapping?.note ?? null, gain: mapping?.gain ?? null,
+        presetId: mapping?.presetId ?? null, selectedPresetId: snapshot.presetId,
+        scale: mapping?.scale ?? null, root: mapping?.root ?? null, oscillator: mapping?.oscillator ?? null,
+        cutoff: mapping?.cutoff ?? null, drive: mapping?.drive ?? null,
         references: current?.references ?? null, policy: snapshot.policy };
     },
     inspect: () => structuredClone(frame),
@@ -32,8 +36,8 @@ export function createLiveDebugPanel(root) {
 }
 
 export function createDebugPanel(features, root) {
-  const score = createSoundScore(features);
-  const bars = new Map(score.bars.map(bar => [bar.minute, bar]));
+  let presetId = DEFAULT_PRESET_ID;
+  let bars = new Map(createSoundScore(features).bars.map(bar => [bar.minute, bar]));
   const nodes = new Map();
   let frame = null;
   function write(id, value) {
@@ -44,6 +48,10 @@ export function createDebugPanel(features, root) {
 
   return {
     render(snapshot) {
+      if ((snapshot.presetId ?? DEFAULT_PRESET_ID) !== presetId) {
+        presetId = snapshot.presetId;
+        bars = new Map(createSoundScore(features, { presetId }).bars.map(bar => [bar.minute, bar]));
+      }
       const ended = snapshot.state === "ended" || snapshot.state === "disposed";
       const bar = ended ? null : bars.get(snapshot.minute) ?? null;
       const wallMinute = 570 + snapshot.minute;
@@ -61,6 +69,8 @@ export function createDebugPanel(features, root) {
       write("reason", snapshot.reason);
       frame = {
         session: features.session.id, state: snapshot.state, minute: snapshot.minute,
+        presetId, scale: bar?.scale ?? null, root: bar?.root ?? null,
+        oscillator: bar?.oscillator ?? null, cutoff: bar?.cutoff ?? null,
         barIndex: bar?.index ?? null, return: bar?.return ?? null, sigma: features.sigma,
         note: bar?.note ?? null, gain: bar?.gain ?? null, drive: bar?.drive ?? null,
         rules: bar ? [...bar.rules] : [], waiting: snapshot.waiting, reason: snapshot.reason,
