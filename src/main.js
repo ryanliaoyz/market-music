@@ -5,6 +5,10 @@ import { createVisuals, createLiveVisuals } from "./visuals.js";
 import { createDebugPanel, createLiveDebugPanel } from "./debug.js";
 import { createLiveFeed } from "./live-feed.js";
 import { createLivePlayback } from "./live-playback.js";
+import { PRESETS } from "./presets.js";
+
+const preset = document.getElementById("preset");
+for (const value of PRESETS) preset.add(new Option(value.label, value.id));
 
 const day = document.getElementById("day");
 const controls = document.getElementById("controls");
@@ -34,6 +38,8 @@ function showError(cause) {
 function render(snapshot) {
   visuals?.render(snapshot);
   debug?.render(snapshot);
+  const mapping = debug?.inspect();
+  document.getElementById("preset-debug").textContent = `Selected: ${snapshot.presetId}; ${mapping?.presetId ?? "no audible preset"} · scale ${mapping?.scale?.join(", ") ?? "n/a"} · root ${mapping?.root ?? "n/a"} · ${mapping?.oscillator ?? "n/a"} · cutoff ${mapping?.cutoff ?? "n/a"} Hz`;
   if (snapshot.mode === "live") {
     play.textContent = snapshot.active ? "Stop" : "Start";
     mode.disabled = snapshot.active;
@@ -80,7 +86,7 @@ async function selectDay(sessions) {
     if (request !== selection) return;
     visuals = createVisuals(features, chart);
     debug = createDebugPanel(features, debugPanel);
-    playback = createPlayback(features, { onChange: render });
+    playback = createPlayback(features, { onChange: render, presetId: preset.value });
     render(playback.inspect());
     chart.hidden = false;
     debugPanel.hidden = false;
@@ -126,7 +132,7 @@ async function selectMode() {
   }
   visuals = createLiveVisuals(chart);
   debug = createLiveDebugPanel(debugPanel);
-  playback = createLivePlayback({ onChange: snapshot => { if (request === selection) render(snapshot); } });
+  playback = createLivePlayback({ presetId: preset.value, onChange: snapshot => { if (request === selection) render(snapshot); } });
   feed = createLiveFeed({
     onTick: tick => { if (request === selection) playback.accept(tick); },
     onStatus: snapshot => {
@@ -167,6 +173,9 @@ play.addEventListener("click", async () => {
 });
 seek.addEventListener("input", () => playback.seek(Number(seek.value)));
 speed.addEventListener("change", () => playback.setSpeed(Number(speed.value)));
+preset.addEventListener("change", () => {
+  try { playback.setPreset(preset.value); } catch (cause) { showError(cause); }
+});
 
 try {
   sessions = await loadCatalog();

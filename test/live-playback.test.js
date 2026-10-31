@@ -2,15 +2,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createLivePlayback } from "../src/live-playback.js";
 import { AudioContext } from "./helpers/audio.js";
+import { fakeTone } from "./helpers/tone.js";
 
 function setup() {
   let time = 0, callback, active = false;
-  const context = new AudioContext(), ticks = [], frames = [];
-  const player = createLivePlayback({ context, now: () => time,
+  const context = new AudioContext(), ticks = [], frames = [], captures = new Map(), cancellations = [];
+  const player = createLivePlayback({ context, tone: fakeTone(), now: () => time,
     setInterval(fn) { callback = fn; active = true; return 1; }, clearInterval() { active = false; },
-    onTick: t => ticks.push(t), onFrame: f => frames.push(f) });
+    onTick: t => ticks.push(t), onFrame: f => frames.push(f),
+    onSchedule: frame => captures.set(frame.scheduleId, frame),
+    onCancel: id => { cancellations.push(id); captures.delete(id); } });
   function jump(ms) { time += ms; context.currentTime = 10 + time / 1000; if (active) callback(); }
-  return { player, context, ticks, frames, jump,
+  return { player, context, ticks, frames, captures, cancellations, jump,
     advance(ms) { while (ms > 0) { const step = Math.min(ms, 25); jump(step); ms -= step; } },
     tick(price = 100, connectionId = 1) { player.accept({ price, connectionId, exchangeTimeMs: time }); },
     active: () => active };
@@ -38,6 +41,34 @@ test("Start buffers five seconds from first tick, then maps and plays the delaye
   assert.ok(s.context.nodes.some(node => node.kind === "oscillator"));
   s.player.stop(); assert.equal(s.active(), false);
   assert.equal(s.player.inspect().audio.activeVoices, 0);
+  await s.player.dispose();
+});
+
+test("switch replaces lookahead audio with the new preset without moving the live deadline or source history", async () => {
+  const s = setup(); await s.player.start(); s.tick(100);
+  s.advance(499); s.tick(110); s.advance(4426);
+  assert.equal(s.captures.get("1:0").presetId, "classic-v1");
+  const source = structuredClone(s.frames[0]);
+  s.player.setPreset("bass-heavy-v1");
+  const captured = s.captures.get("1:0");
+  assert.deepEqual(s.cancellations, ["1:0"]);
+  assert.equal(captured.presetId, "bass-heavy-v1");
+  assert.equal(captured.mapping.note, 55);
+  assert.equal(captured.playbackOffsetMs, 5000);
+  assert.equal(captured.when, 15);
+  assert.deepEqual(s.frames[0], source);
+  s.advance(75);
+  assert.equal(s.player.inspect().audible.mapping.presetId, "bass-heavy-v1");
+  assert.equal(s.player.inspect().delayedCursorMs, 0);
+  s.player.setPreset("plucky-v1");
+  assert.equal(s.player.inspect().audible.mapping.presetId, "bass-heavy-v1");
+  s.advance(500);
+  assert.equal(s.player.inspect().audible.mapping.presetId, "plucky-v1");
+  assert.equal(s.player.inspect().segmentId, 1);
+  s.player.setConnection({ state: "reconnecting", reason: "closed" });
+  assert.equal(s.player.inspect().presetId, "plucky-v1");
+  s.player.stop(); await s.player.start();
+  assert.equal(s.player.inspect().presetId, "plucky-v1");
   await s.player.dispose();
 });
 
