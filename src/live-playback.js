@@ -1,12 +1,13 @@
 import { createSoundEngine, mapSoundFrame } from "./sound.js";
-import { DEFAULT_PRESET_ID, getPreset } from "./presets.js";
+import { getPreset } from "./presets.js";
 import { createLiveFeatures, FRAME_MS, WINDOW_FRAMES, LIVE_POLICY } from "./live-features.js";
+import { musicalMapping } from "./live-music.js";
 
 export const DELAY_MS = 5000;
 const RETAINED_FRAMES = WINDOW_FRAMES + DELAY_MS / FRAME_MS + 2;
 
 export function createLivePlayback({ context, onChange = () => {}, onTick = () => {}, onFrame = () => {},
-  presetId = DEFAULT_PRESET_ID, tone, onSchedule = () => {}, onCancel = () => {}, onBoundary = () => {},
+  presetId = "classic-v2", tone, onSchedule = () => {}, onCancel = () => {}, onBoundary = () => {},
   now = () => performance.now(), setInterval: every = globalThis.setInterval,
   clearInterval: cancel = globalThis.clearInterval } = {}) {
   getPreset(presetId);
@@ -16,6 +17,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
   let frames = [], pending = new Map(), built = -1, nextAudio = 0;
   let audible = null, scheduled = [], newestReceived = null, audioReady = false;
   let audioError = null;
+  const trades = new Map();
 
   function inspect() {
     const cursor = origin === null ? null : now() - origin - DELAY_MS;
@@ -35,14 +37,15 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     onBoundary(engine?.inspect().currentTime ?? 0, why);
     for (const item of scheduled) if (item.when > engine.inspect().currentTime) onCancel(item.frame.scheduleId);
     engine?.stop(); features = createLiveFeatures();
-    origin = null; frames = []; pending.clear(); built = -1; nextAudio = 0;
+    origin = null; frames = []; pending.clear(); trades.clear(); built = -1; nextAudio = 0;
     audible = null; scheduled = []; reason = why;
   }
   function build(slot) {
     const tick = pending.get(slot);
     if (tick) features.accept(tick);
     pending.delete(slot);
-    const frame = features.sample(slot * FRAME_MS);
+    const frame = features.sample(slot * FRAME_MS, trades.get(slot));
+    trades.delete(slot);
     Object.assign(frame, { segmentId, sourceOffsetMs: slot * FRAME_MS,
       sessionOffsetMs: origin - sessionStart + slot * FRAME_MS,
       playbackOffsetMs: origin - sessionStart + slot * FRAME_MS + DELAY_MS });
@@ -58,6 +61,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     // A backgrounded page skips expired source intervals instead of processing an unbounded backlog.
     const first = Math.max(built + 1, sourceSlot - RETAINED_FRAMES + 1);
     for (const slot of pending.keys()) if (slot < first) pending.delete(slot);
+    for (const slot of trades.keys()) if (slot < first) trades.delete(slot);
     for (let slot = first; slot <= sourceSlot; slot++) build(slot);
     const cursor = time - origin - DELAY_MS;
     if (audioReady && cursor >= 0 && state !== "error") state = "playing";
@@ -81,9 +85,10 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       const frame = frames.find(item => item.slot === slot);
       if (!frame?.mapping) continue;
       const when = audioNow + (due - time) / 1000;
-      const mapping = engine.playMapping(mapSoundFrame({ index: frame.id, minute: frame.slot, close: frame.price,
+      const resolved = getPreset(presetId).rhythm ? musicalMapping(frame, presetId) : mapSoundFrame({ index: frame.id, minute: frame.slot, close: frame.price,
         return: frame.return, sigma: frame.sigma, event: frame.event, rollingVolatility: frame.rollingVolatility,
-        vwap: null }, frame.references, { gain: 0.11, presetId }), { when, duration: 0.47, skipIfLate: true });
+        vwap: null }, frame.references, { gain: 0.11, presetId });
+      const mapping = engine.playMapping(resolved, { when, duration: 0.47, skipIfLate: true });
       if (mapping) {
         const captured = { ...frame, mapping, presetId, scheduleId: `${segmentId}:${frame.slot}`,
           when, duration: 0.47, until: when + 0.47 };
@@ -96,6 +101,13 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     notify();
   }
   return {
+    acceptTrade(trade) {
+      if (!active || disposed || origin === null || connectionId !== trade.connectionId) return;
+      const slot = Math.max(built + 1, Math.ceil((now() - origin) / FRAME_MS));
+      const bin = trades.get(slot) ?? { count: 0, size: 0 };
+      trades.set(slot, { count: bin.count + 1, size: bin.size + trade.size });
+      for (const old of trades.keys()) if (slot - old >= RETAINED_FRAMES) trades.delete(old);
+    },
     setPreset(id) {
       getPreset(id);
       if (disposed) throw new Error("Live playback is disposed");

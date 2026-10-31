@@ -13,5 +13,9 @@ export function fakeTone() {
     triggerAttackRelease(...args) { this.trigger = args; }
     dispose() { this.disposed = true; }
   }
-  return { Context, Synth: Node, Filter: Node, Distortion: Node, nodes, contexts };
+  class OfflineContext extends Context {
+    constructor(context) { super({ context }); }
+    async render() { return this.options.context.startRendering(); }
+  }
+  return { Context, OfflineContext, Synth: Node, Filter: Node, Distortion: Node, nodes, contexts };
 }

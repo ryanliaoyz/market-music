@@ -50,8 +50,9 @@ async function setup(page, { catalogFailure = false, clock = true } = {}) {
 
 test("Start subscribes, buffers five seconds, and renders only delayed prices; Stop unsubscribes", async ({ page }) => {
   const mock = await setup(page); await mock.start();
-  await expect.poll(() => mock.subscriptions.length).toBe(2);
+  await expect.poll(() => mock.subscriptions.length).toBe(3);
   expect(mock.subscriptions).toEqual([{ type: "subscribe", channel: "ticker", product_ids: ["BTC-USD"] },
+    { type: "subscribe", channel: "market_trades", product_ids: ["BTC-USD"] },
     { type: "subscribe", channel: "heartbeats" }]);
   await expect(page.getByLabel("Mode", { exact: true })).toBeDisabled();
   await expect(page.getByLabel("Speed")).toBeHidden();
@@ -67,7 +68,8 @@ test("Start subscribes, buffers five seconds, and renders only delayed prices; S
   expect(mock.sockets).toHaveLength(1); expect(mock.closed).toHaveLength(0);
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   await expect.poll(() => mock.closed.length).toBe(1);
-  expect(mock.subscriptions.slice(-2)).toEqual([{ type: "unsubscribe", channel: "ticker", product_ids: ["BTC-USD"] },
+  expect(mock.subscriptions.slice(-3)).toEqual([{ type: "unsubscribe", channel: "ticker", product_ids: ["BTC-USD"] },
+    { type: "unsubscribe", channel: "market_trades", product_ids: ["BTC-USD"] },
     { type: "unsubscribe", channel: "heartbeats" }]);
   expect((await inspect(page)).playback.frames).toEqual([]);
   await expect(page.getByLabel("Mode", { exact: true })).toBeEnabled();
@@ -96,14 +98,14 @@ test("real Web Audio and the debug/chart mapping follow the delayed frame", asyn
 
 test("live Tone selection changes the next audible frame while buffered prices retain their deadlines", async ({ page }) => {
   const mock = await setup(page, { clock: false });
-  await page.getByLabel("Sound preset").selectOption("ambient-v1");
+  await page.getByLabel("Sound preset").selectOption("ambient-v2");
   await mock.start(); mock.send(0, 100);
   await page.waitForTimeout(500); mock.send(1, 110);
-  await page.getByLabel("Sound preset").selectOption("bass-heavy-v1");
+  await page.getByLabel("Sound preset").selectOption("bass-heavy-v2");
   await expect.poll(async () => (await inspect(page)).playback.audible?.mapping.presetId,
-    { intervals: [25], timeout: 8000 }).toBe("bass-heavy-v1");
+    { intervals: [25], timeout: 8000 }).toBe("bass-heavy-v2");
   const state = await inspect(page);
-  expect(state.debug.presetId).toBe("bass-heavy-v1");
+  expect(state.debug.presetId).toBe("bass-heavy-v2");
   expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(5000);
   expect(mock.sockets).toHaveLength(1);
   await page.getByRole("button", { name: "Stop", exact: true }).click();
@@ -120,7 +122,7 @@ test("network drops reconnect and refill; quiet markets keep the socket open", a
   await expect(page.locator("#status")).toContainText("Reconnecting");
   await page.clock.runFor(1100);
   await expect.poll(() => mock.sockets.length).toBe(2);
-  await expect.poll(() => mock.subscriptions.length).toBe(4);
+  await expect.poll(() => mock.subscriptions.length).toBe(6);
   mock.send(0, 200); await expect(page.locator("#status")).toContainText("Buffering");
   await mock.advance(4900); expect((await inspect(page)).visuals.close).toBeNull();
   await mock.advance(100); expect((await inspect(page)).visuals.close).toBe(200);

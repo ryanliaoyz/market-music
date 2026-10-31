@@ -4,11 +4,11 @@ import { createLiveFeed, LIVE_URL } from "../src/live-feed.js";
 import { fakeTime, sockets, ticker, heartbeat } from "./helpers/websocket.js";
 
 function setup() {
-  const clock = fakeTime(), { Socket, instances } = sockets(), ticks = [], statuses = [];
+  const clock = fakeTime(), { Socket, instances } = sockets(), ticks = [], statuses = [], trades = [];
   const feed = createLiveFeed({ ...clock, monotonic: clock.now, random: () => 1,
-    WebSocket: Socket, onTick: tick => ticks.push(tick), onStatus: status => statuses.push(status) });
+    WebSocket: Socket, onTick: tick => ticks.push(tick), onTrade: trade => trades.push(trade), onStatus: status => statuses.push(status) });
   feed.start();
-  return { clock, instances, ticks, statuses, feed, socket: instances[0] };
+  return { clock, instances, ticks, trades, statuses, feed, socket: instances[0] };
 }
 
 test("keyless subscriptions, snapshots, batches and capture timestamps", () => {
@@ -16,6 +16,7 @@ test("keyless subscriptions, snapshots, batches and capture timestamps", () => {
   assert.equal(socket.url, LIVE_URL);
   socket.open();
   assert.deepEqual(socket.sent, [{ type: "subscribe", channel: "ticker", product_ids: ["BTC-USD"] },
+    { type: "subscribe", channel: "market_trades", product_ids: ["BTC-USD"] },
     { type: "subscribe", channel: "heartbeats" }]);
   clock.advance(100);
   const message = ticker(0, "100", "snapshot");
@@ -26,6 +27,26 @@ test("keyless subscriptions, snapshots, batches and capture timestamps", () => {
   assert.equal(ticks[0].exchangeTimeMs, Date.parse(message.timestamp));
   assert.ok(Object.isFrozen(ticks[0]));
   assert.equal(feed.inspect().state, "live");
+  feed.stop(); assert.equal(clock.count(), 0);
+});
+
+test("market trades validate once, ignore snapshots, deduplicate and sequence independently", () => {
+  const { feed, socket, trades, ticks, clock, instances } = setup();
+  const trade = { product_id: "BTC-USD", trade_id: "1", price: "60000.01", size: "0.02", side: "BUY", time: "2026-10-30T12:00:00Z" };
+  const batch = (seq, values, type = "update") => ({ channel: "market_trades", sequence_num: seq, events: [{ type, trades: values }] });
+  socket.message(batch(0, [trade], "snapshot"));
+  assert.equal(trades.length, 0);
+  socket.message(ticker(0)); socket.message(batch(1, [trade]));
+  socket.message(batch(1, [{ ...trade, trade_id: "2" }]));
+  socket.message(batch(2, [trade, { ...trade, trade_id: "2", size: "NaN" }, { ...trade, product_id: "ETH-USD" }]));
+  socket.message(batch(4, [{ ...trade, trade_id: "3" }]));
+  assert.equal(trades.length, 2); assert.equal(ticks.length, 1);
+  assert.equal(trades[0].size, 0.02); assert.ok(Object.isFrozen(trades[0]));
+  assert.equal(trades[1].discontinuity, true);
+  assert.equal(feed.inspect().rejected, 3); assert.equal(feed.inspect().tradeSequence, 4);
+  socket.onclose(); clock.advance(1000);
+  instances[1].message(batch(0, [trade]));
+  assert.equal(trades.at(-1).connectionId, 2);
   feed.stop(); assert.equal(clock.count(), 0);
 });
 
@@ -52,7 +73,7 @@ test("error and close schedule one retry, stale callbacks cannot emit, sequence 
   stale({ data: JSON.stringify(ticker()) }); assert.equal(ticks.length, 0);
   clock.advance(1000); instances[1].open(); instances[1].message(ticker());
   assert.equal(ticks[0].connectionId, 2);
-  assert.equal(instances[1].sent.length, 2);
+  assert.equal(instances[1].sent.length, 3);
   instances[1].onclose();
   assert.equal(feed.inspect().retryAt, 3000);
   feed.stop(); clock.advance(60000); assert.equal(instances.length, 2);
@@ -83,7 +104,8 @@ test("quiet subscribed markets remain open; only Stop unsubscribes", () => {
   }
   assert.equal(socket.closed, undefined); assert.equal(feed.inspect().state, "waiting");
   feed.stop(); assert.equal(socket.closed, true);
-  assert.deepEqual(socket.sent.slice(-2), [{ type: "unsubscribe", channel: "ticker", product_ids: ["BTC-USD"] },
+  assert.deepEqual(socket.sent.slice(-3), [{ type: "unsubscribe", channel: "ticker", product_ids: ["BTC-USD"] },
+    { type: "unsubscribe", channel: "market_trades", product_ids: ["BTC-USD"] },
     { type: "unsubscribe", channel: "heartbeats" }]);
   assert.equal(clock.count(), 0);
 });
