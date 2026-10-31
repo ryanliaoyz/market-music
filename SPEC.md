@@ -7,6 +7,17 @@ The pipeline is `src/data.js` (validation) → `src/features.js` (pure calculati
 loader contracts, source choices, and session verification, and the
 [README](README.md) for running, testing, deployment, and manual checks.
 
+## Deployment boundary
+
+The application is a static HTTPS site with no backend: live subscriptions connect
+directly from the browser to Coinbase, and recording replay/WAV export run locally.
+The service worker stays at the app root so its scope covers the shell. See the
+[production path and acceptance checklist](README.md#deploy).
+
+Release v2 does not change the `#recording=v1.` format or its synthesis semantics.
+Worker cache versions track shell changes independently of release numbering;
+documentation-only changes do not require a cache bump.
+
 ## Recording contracts
 
 `recording.js` consumes live schedule/cancel callbacks, including already queued
