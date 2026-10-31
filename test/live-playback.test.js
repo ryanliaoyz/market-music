@@ -12,7 +12,7 @@ function setup() {
     onTick: t => ticks.push(t), onFrame: f => frames.push(f),
     onSchedule: frame => captures.set(frame.scheduleId, frame),
     onCancel: id => { cancellations.push(id); captures.delete(id); } });
-  function jump(ms) { time += ms; context.currentTime = 10 + time / 1000; if (active) callback(); }
+  function jump(ms, audioLead = 0) { time += ms; context.currentTime = 10 + time / 1000 + audioLead; if (active) callback(); }
   return { player, context, ticks, frames, captures, cancellations, jump,
     advance(ms) { while (ms > 0) { const step = Math.min(ms, 25); jump(step); ms -= step; } },
     tick(price = 100, connectionId = 1) { player.accept({ price, mid: price, spread: 0, connectionId, exchangeTimeMs: time }); },
@@ -41,6 +41,21 @@ test("Start buffers five seconds from first tick, then maps and plays the delaye
   assert.ok(s.player.inspect().audio.activeToneFrames > 0);
   s.player.stop(); assert.equal(s.active(), false);
   assert.equal(s.player.inspect().audio.activeVoices, 0);
+  await s.player.dispose();
+});
+
+test("an audible first frame leaves buffering even when the audio clock leads the wall cursor", async () => {
+  const s = setup(); await s.player.start(); s.tick(101);
+  s.advance(4900);
+  assert.equal(s.player.inspect().state, "buffering");
+  assert.equal(s.player.inspect().audible, null);
+  s.jump(99, 0.005);
+  const snapshot = s.player.inspect();
+  assert.equal(snapshot.delayedCursorMs, null);
+  assert.equal(snapshot.latest, null);
+  assert.equal(snapshot.audible.price, 101);
+  assert.equal(snapshot.state, "playing");
+  assert.equal(snapshot.reason, "delayed-timeline");
   await s.player.dispose();
 });
 

@@ -64,7 +64,6 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     const first = Math.max(built + 1, Math.ceil((time - origin - DELAY_MS) / FRAME_MS));
     for (let slot = first; slot <= sourceSlot; slot++) build(slot);
     const cursor = time - origin - DELAY_MS;
-    if (audioReady && cursor >= 0 && state !== "error") state = "playing";
     if (!audioReady || engine.inspect().contextState !== "running") {
       onBoundary(engine.inspect().currentTime, "audio-suspended");
       for (const item of scheduled) onCancel(item.frame.scheduleId);
@@ -98,7 +97,10 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
         if (audioNow >= when) audible = captured;
       }
     }
-    reason = cursor < 0 ? "buffering" : "delayed-timeline";
+    // The audio clock can reach a scheduled frame just before the wall cursor.
+    const playing = cursor >= 0 || audible !== null;
+    if (playing && state !== "error") state = "playing";
+    reason = playing ? "delayed-timeline" : "buffering";
     notify();
   }
   return {
