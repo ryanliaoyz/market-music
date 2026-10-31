@@ -1,5 +1,5 @@
 import { PRESETS, LIVE_PRESETS, getPreset } from "./presets.js";
-import { patternMapping } from "./live-music.js";
+import { patternMapping, degreeNote } from "./live-music.js";
 
 export const MAX_DURATION_MS = 30000;
 export const MAX_FRAMES = 60;
@@ -7,6 +7,12 @@ export const MAX_HASH_LENGTH = 4096;
 const PREFIX = "#recording=v1.";
 const STRIDE = 24;
 const hz = note => 440 * 2 ** ((note - 69) / 12);
+const allowedNotes = new Map([...PRESETS, ...LIVE_PRESETS].map(preset => [preset.id,
+  new Set(preset.rhythm ? Array.from({ length: 15 }, (_, degree) => degreeNote(degree, preset)) :
+    Array.from({ length: 3 * preset.scale.length + 1 }, (_, step) =>
+      preset.root + 12 * Math.floor(step / preset.scale.length) + preset.scale[step % preset.scale.length]))]));
+const allowedChords = new Map(LIVE_PRESETS.map(preset => [preset.id,
+  [0, 3, 4, 5].map(degree => [0, 2, 4].map(step => degreeNote(degree + step, preset)))]));
 
 export function recordingMapping(frame) {
   if (frame.mask !== undefined) return patternMapping(frame);
@@ -25,8 +31,10 @@ function validate(clip) {
   for (const frame of clip.frames) {
     const preset = getPreset(frame.presetId);
     if (Boolean(preset.rhythm) !== Boolean(getPreset(clip.frames[0].presetId).rhythm)) throw new Error("Mixed recording versions");
+    if (!allowedNotes.get(preset.id).has(frame.note) || (!preset.rhythm && frame.harmony !== null &&
+        frame.harmony !== frame.note + 4 && frame.harmony !== frame.note - 6)) throw new Error("Invalid recording notes");
     if (preset.rhythm && (!Array.isArray(frame.chord) || frame.chord.length !== 3 ||
-        ![frame.note, ...frame.chord].every(note => Number.isInteger(note) && note >= 0 && note <= 127 && preset.scale.includes(((note - preset.root) % 12 + 12) % 12)) ||
+        !allowedChords.get(preset.id).some(chord => chord.every((note, i) => frame.chord[i] === note)) ||
         !preset.rhythm.includes(frame.mask) || !Number.isInteger(frame.accent) || frame.accent < 0 || frame.accent > 3 ||
         frame.harmony !== frame.chord[0] || frame.intensity !== frame.accent / 3)) throw new Error("Invalid musical recording");
     if (!Number.isInteger(frame.offsetMs) || frame.offsetMs < 0 || frame.offsetMs >= clip.durationMs || frame.offsetMs <= previous ||
