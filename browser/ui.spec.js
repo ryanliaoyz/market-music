@@ -20,7 +20,7 @@ for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }
         expect(box.x).toBeGreaterThanOrEqual(chart.x);
         expect(box.x + box.width).toBeLessThanOrEqual(chart.x + chart.width);
       }
-      for (const control of [page.getByLabel("Trading day"), page.getByRole("button", { name: "Play", exact: true }),
+      for (const control of [page.getByLabel("Mode", { exact: true }), page.getByLabel("Trading day"), page.getByRole("button", { name: "Play", exact: true }),
         page.getByLabel("Speed"), page.getByRole("slider"), page.locator("#debug summary")]) {
         const box = await control.boundingBox();
         expect(box.height).toBeGreaterThanOrEqual(44);
@@ -37,7 +37,7 @@ for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }
 test("keyboard navigation has visible focus and operates playback controls", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled();
-  const controls = [page.getByLabel("Trading day"), page.getByRole("button", { name: "Play", exact: true }),
+  const controls = [page.getByLabel("Mode", { exact: true }), page.getByLabel("Trading day"), page.getByRole("button", { name: "Play", exact: true }),
     page.getByLabel("Speed"), page.getByRole("slider"), page.locator("#debug summary")];
   for (const control of controls) {
     await page.keyboard.press("Tab");

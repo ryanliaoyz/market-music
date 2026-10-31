@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createVisuals } from "../src/visuals.js";
+import { createVisuals, createLiveVisuals } from "../src/visuals.js";
+import { createLiveFeatures } from "../src/live-features.js";
 import { createPlayback } from "../src/playback.js";
 import { computeFeatures } from "../src/features.js";
 import { parseSessionCsv } from "../src/data.js";
@@ -20,6 +21,30 @@ function chart() {
     node(id) { return this.querySelector(`[data-visual="${id}"]`); },
   };
 }
+
+test("live chart handles empty/flat windows, gaps, eviction and audible mappings", () => {
+  const svg = chart(), visuals = createLiveVisuals(svg), features = createLiveFeatures();
+  const render = (latest, extra = {}) => visuals.render({ ...features.inspect(), latest, state: "paused", ...extra });
+  render(null);
+  assert.equal(svg.node("point").attributes.visibility, "hidden");
+  assert.equal(svg.node("line").attributes.d, "");
+  features.accept({ price: 100, connectionId: 1, exchangeTimeMs: 0 });
+  let latest = features.sample(0); render(latest);
+  assert.equal(svg.node("point").attributes.cy, "144");
+  features.sample(500);
+  features.accept({ price: 110, connectionId: 1, exchangeTimeMs: 1000 });
+  latest = features.sample(1000); render(latest);
+  assert.equal(svg.node("line").attributes.d.split("M").length - 1, 2);
+  render(latest, { state: "playing", audible: { ...latest, event: "spike", when: 10 },
+    audio: { currentTime: 10.1, lastScheduled: { when: 10, duration: 0.5 } } });
+  assert.equal(visuals.inspect().frameId, latest.id);
+  assert.ok(visuals.inspect().flash > 0);
+  for (let i = 3; i < 125; i++) { features.accept({ price: 110, connectionId: 1 }); latest = features.sample(i * 500); }
+  render(latest);
+  assert.doesNotMatch(svg.node("line").attributes.d, /NaN|Infinity/);
+  assert.equal(svg.node("point").attributes.cx, "750");
+  assert.equal(visuals.inspect().flash, 0);
+});
 
 const features = {
   session: { id: "visual-fixture" }, openingGapReturn: -0.02,
