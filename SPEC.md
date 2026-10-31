@@ -60,8 +60,8 @@ retain their separate contracts below.
   volume-derived gain, VWAP drone, or opening gong. Scale, harmony, timbre, and
   spike/drop hits reuse `mapSoundFrame()` and `engine.playMapping()`. Historical
   `createSoundScore()`/`playBar()` use the same mapping/synthesis with their original
-  normalization. A later Tone.js implementation can replace synthesis without
-  changing feed or timeline code.
+   normalization. Preset selection changes synthesis and scale without changing
+   the feed, causal normalization, or five-second timeline.
 
 ### Capture and diagnostics
 
@@ -78,6 +78,22 @@ and session receipt offset. `onFrame` emits prepared frames with policy `live-v1
 segment ID, source/session offsets, intended playback offset, normalization
 references, and mapping. These callbacks are the GRO-27 recorder/replay seam; no
 recording persistence or export is implemented here.
+
+`onFrame` remains immutable source-time analysis; its default mapping is not a
+record of what was played. `onSchedule(frame)` is the GRO-27 audio capture seam:
+it emits the actual mapping, versioned `presetId`, duration, audio-clock `when`,
+and existing session/source/playback offsets. Its `scheduleId` (`segmentId:slot`)
+is unique within one Start session. `onCancel(scheduleId)` invalidates queued
+frames on preset replacement, Stop, or reconnect. A recorder must upsert by this
+ID, remove cancellations, and begin a new namespace per Start. Thus a replacement
+inside lookahead captures only the final audible preset, never both versions.
+
+Live `setPreset(id)` remaps future audio using each frame's original causal
+references. It cancels/reschedules future lookahead voices at the same deadlines,
+without resetting history, the segment, buffer, or connection. Already-started
+frames/tails keep their preset; the next audible non-rest frame uses the new one.
+Selection survives reconnect and Stop/Start. `inspect().presetId` is the selected
+ID; `audible.mapping.presetId` is the audible one, which may still differ.
 
 `inspect()` exposes active/state/reason, buffer duration, queue size, segment ID,
 newest received price/time, delayed cursor, delayed chart frames, audible frame,
@@ -103,6 +119,28 @@ and volatility are fractions (`0.01` = 1%), inspectable without audio/playback.
 | `openingGapReturn` | First open / catalog previous close − 1; null if the opening minute is absent, zero for no gap. Separate from σ and rolling volatility. |
 
 ## Sound engine conventions
+
+`src/presets.js` defines immutable, versioned IDs: `classic-v1` (default),
+`ambient-v1`, `plucky-v1`, and `bass-heavy-v1`. IDs alone serialize the complete
+sound definition; incompatible changes require a new ID. Unknown IDs are rejected.
+Scores and mappings carry `presetId`, scale intervals, MIDI root, and oscillator.
+`createSoundScore(features, { presetId })` and `mapSoundFrame(..., { presetId })`
+share the pure mapping. Classic's formulas below remain the default.
+
+Ambient uses sine/soft attack, Plucky triangle/short decay with major-pentatonic
+intervals `[0, 2, 4, 7, 9]`, and Bass-heavy sawtooth with root MIDI 36.
+Ambient and Classic use root 48 and minor-pentatonic `[0, 3, 5, 7, 10]`.
+Each lead spans three octaves, its drone starts an octave below the root;
+signed chromatic harmony and rule IDs remain unchanged for every preset.
+
+New presets use `src/tone-engine.js` and vendored Tone.js 15.1.22, without Transport
+or sample assets. Tone uses the engine's audio clock with zero added lookahead.
+Per-frame Synth envelopes feed a lowpass at mapping cutoff then distortion
+(`drive / 48`); lead gain is applied as synth dB volume. Native sine drones and
+deterministic event hits retain their original synthesis. Frame nodes are freed
+after their envelopes, and Stop disconnects them immediately. Tone's wrapper is
+disposed without closing the borrowed native context; the engine owns native
+closure. Classic continues through the original Web Audio graph.
 
 `createSoundScore(features)` purely maps enriched features, preserving observed
 bar indices and exchange minutes without inserting bars. Normalization uses the
@@ -134,6 +172,11 @@ are now and 0.5 seconds. It returns the mapping. Playback supplies `skipIfLate: 
 to return null without allocating sounds when a beat expires before the engine
 reads the clock; other callers reject past times. The engine creates no timers;
 playback owns speed, rests, and seeking.
+
+`setPreset(id)` updates historical scoring and stops voices. Historical playback
+restarts the displayed minute when playing and updates paused previews, preserving
+end state; a change during pending resume leaves playback paused. `cancelScheduled(time)`
+cancels only future voice graphs (used by live playback, which has no drone).
 
 `stop()` immediately cancels/disconnects voices, drone, and queued audio, leaving
 the engine reusable. Natural voice endings release nodes. `await dispose()` also
@@ -185,7 +228,7 @@ without its own timer/event queue or the sound engine's lookahead mapping.
 
 ## Debug panel conventions
 
-`createDebugPanel(features, root)` calls `createSoundScore` once per session and
+`createDebugPanel(features, root)` refreshes `createSoundScore` on preset changes and
 renders the chart's playback snapshots, with no timer, audio context, or firing history.
 
 - Current bar = cursor minute and zero-based observed index, not last scheduled bar.
