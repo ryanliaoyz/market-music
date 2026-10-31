@@ -6,7 +6,7 @@ import { renderWav, encodeWav } from "../src/wav.js";
 import { createRecordingPlayback } from "../src/recording-playback.js";
 import { AudioContext } from "./helpers/audio.js";
 
-const frame = (when = 10, presetId = "classic-v1") => ({ scheduleId: `1:${when}`, when, price: 100, presetId,
+const frame = (when = 10, presetId = "classic-v1") => ({ scheduleId: `1:${when}`, when, playbackOffsetMs: Math.round(when * 1000), price: 100, presetId,
   event: null, mapping: { note: 60, harmony: 64, intensity: 0.25 } });
 const clip = { durationMs: 1000, frames: [{ offsetMs: 0, price: 100, presetId: "classic-v1", note: 60, harmony: 64, intensity: 0.25, event: null }] };
 
@@ -28,6 +28,17 @@ test("recorder caps at 30 seconds and finalizes interruption without stale start
   recorder.update(40); assert.equal(recorder.clip.frames.length, 60); assert.equal(recorder.clip.durationMs, 30000);
   recorder.boundary(41, "stop"); recorder.start(42); recorder.schedule(frame(42)); recorder.boundary(42.2, "reconnect");
   assert.equal(recorder.clip.durationMs, 200); assert.equal(recorder.clip.frames.length, 1);
+});
+
+test("preset rescheduling clock jitter preserves nonnegative grid timing and an encodable clip", () => {
+  const recorder = createRecorder();
+  recorder.schedule(frame(10.1)); recorder.start(10);
+  recorder.cancel("1:10.1");
+  recorder.schedule({ ...frame(10.1, "plucky-v1"), when: 10.098 });
+  recorder.schedule({ ...frame(10.6, "plucky-v1"), when: 10.601 });
+  recorder.finish(10.9);
+  assert.deepEqual(recorder.clip.frames.map(frame => frame.offsetMs), [0, 500]);
+  assert.deepEqual(decodeRecording(encodeRecording(recorder.clip)), recorder.clip);
 });
 
 test("codec retains exact values and full clips fit 4 KiB", () => {
