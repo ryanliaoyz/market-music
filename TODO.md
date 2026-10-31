@@ -59,4 +59,12 @@
 - [x] Listeners can use the full-screen reactive visual, one Start/Stop control and keyboard-accessible preset cards on desktop and mobile, with Debug collapsed by default.
 - [x] Desktop and mobile screenshots demonstrate the layout, and the existing playback, recording and offline checks pass.
 
+## Version 3
+
+### M1: Signal layer (GRO-39)
+
+- [x] Live emits continuous mid/spread beats and exchange-timed sixteenth trade aggregates with maker-side inversion, finalized at scheduling time on the unchanged five-second delayed grid.
+- [x] Debug exposes bounded energy, contour, tension, mood, flow, hits and events, their smoothing/hysteresis state, quote age and late-trade counts.
+- [x] Offline fixture tapes produce no data rests, seeded fuzz keeps controls in range, and unit/browser regressions pass without exchange access.
+
 ## Later

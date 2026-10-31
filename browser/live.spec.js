@@ -3,7 +3,7 @@ import { test, expect } from "./fixtures.js";
 const inspect = page => page.evaluate(() => window.marketMusic.inspect());
 const message = (sequence, price) => ({ channel: "ticker", sequence_num: sequence,
   timestamp: "2026-10-30T12:00:00Z", events: [{ type: sequence === 0 ? "snapshot" : "update",
-    tickers: [{ product_id: "BTC-USD", price: String(price) }] }] });
+    tickers: [{ product_id: "BTC-USD", price: String(price), best_bid: String(price), best_ask: String(price) }] }] });
 const heartbeat = JSON.stringify({ channel: "heartbeats", sequence_num: 0, events: [{ heartbeat_counter: "1" }] });
 
 async function setup(page, { catalogFailure = false, clock = true } = {}) {

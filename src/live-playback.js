@@ -2,6 +2,7 @@ import { createSoundEngine, mapSoundFrame } from "./sound.js";
 import { getPreset } from "./presets.js";
 import { createLiveFeatures, FRAME_MS, WINDOW_FRAMES, LIVE_POLICY } from "./live-features.js";
 import { musicalMapping } from "./live-music.js";
+import { createBeatAggregator } from "./live-aggregate.js";
 
 export const DELAY_MS = 5000;
 const RETAINED_FRAMES = WINDOW_FRAMES + DELAY_MS / FRAME_MS + 2;
@@ -14,10 +15,10 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
   let features = createLiveFeatures(), engine = null, timer = null;
   let state = "stopped", reason = "created", active = false, disposed = false, generation = 0;
   let sessionStart = 0, origin = null, segmentId = 0, connectionId = null;
-  let frames = [], pending = new Map(), built = -1, nextAudio = 0;
+  let frames = [], built = -1, nextAudio = 0;
   let audible = null, scheduled = [], newestReceived = null, audioReady = false;
   let audioError = null;
-  const trades = new Map();
+  let aggregate = null;
 
   function inspect() {
     const cursor = origin === null ? null : now() - origin - DELAY_MS;
@@ -25,11 +26,12 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     return { mode: "live", state, reason, active, segmentId, audioError, delayMs: DELAY_MS, presetId,
       pendingPreset: scheduled.at(0)?.frame.mapping.presetId ?? null,
       policy: LIVE_POLICY, bufferedMs: origin === null ? 0 : Math.min(DELAY_MS, Math.max(0, now() - origin)),
-      queueSize: frames.filter(frame => cursor === null || frame.sourceOffsetMs > cursor).length + pending.size,
+      queueSize: frames.filter(frame => cursor === null || frame.sourceOffsetMs > cursor).length + (aggregate?.inspect().pendingBeats ?? 0),
       delayedCursorMs: cursor === null || cursor < 0 ? null : origin - sessionStart + cursor,
       newestReceived: structuredClone(newestReceived), frames: structuredClone(visible),
       latest: structuredClone(visible.at(-1) ?? null), audible: structuredClone(audible),
       waiting: !active || audioError ? null : !audioReady ? "audio-context-resume" : origin === null ? "first-price" : cursor < 0 ? "five-second-buffer" : null,
+      signal: features.inspectSignal(), aggregate: aggregate?.inspect() ?? null,
       audio: engine?.inspect() ?? null };
   }
   function notify() { onChange(inspect()); }
@@ -37,15 +39,15 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     onBoundary(engine?.inspect().currentTime ?? 0, why);
     for (const item of scheduled) if (item.when > engine.inspect().currentTime) onCancel(item.frame.scheduleId);
     engine?.stop(); features = createLiveFeatures();
-    origin = null; frames = []; pending.clear(); trades.clear(); built = -1; nextAudio = 0;
+    origin = null; frames = []; built = -1; nextAudio = 0;
+     aggregate = null;
     audible = null; scheduled = []; reason = why;
   }
   function build(slot) {
-    const tick = pending.get(slot);
+    const beat = aggregate.sample(slot);
+    const tick = beat.tick;
     if (tick) features.accept(tick);
-    pending.delete(slot);
-    const frame = features.sample(slot * FRAME_MS, trades.get(slot));
-    trades.delete(slot);
+    const frame = features.sample(slot * FRAME_MS, beat);
     Object.assign(frame, { segmentId, sourceOffsetMs: slot * FRAME_MS,
       sessionOffsetMs: origin - sessionStart + slot * FRAME_MS,
       playbackOffsetMs: origin - sessionStart + slot * FRAME_MS + DELAY_MS });
@@ -57,11 +59,9 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
   function advance() {
     if (!active || origin === null) { notify(); return; }
     const time = now();
-    const sourceSlot = Math.floor((time - origin) / FRAME_MS);
+    const sourceSlot = Math.floor((time - origin - DELAY_MS + 100) / FRAME_MS);
     // A backgrounded page skips expired source intervals instead of processing an unbounded backlog.
-    const first = Math.max(built + 1, sourceSlot - RETAINED_FRAMES + 1);
-    for (const slot of pending.keys()) if (slot < first) pending.delete(slot);
-    for (const slot of trades.keys()) if (slot < first) trades.delete(slot);
+    const first = Math.max(built + 1, Math.ceil((time - origin - DELAY_MS) / FRAME_MS));
     for (let slot = first; slot <= sourceSlot; slot++) build(slot);
     const cursor = time - origin - DELAY_MS;
     if (audioReady && cursor >= 0 && state !== "error") state = "playing";
@@ -104,10 +104,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     setVolume(value) { volume = value; engine?.setVolume(value); notify(); },
     acceptTrade(trade) {
       if (!active || disposed || origin === null || connectionId !== trade.connectionId) return;
-      const slot = Math.max(built + 1, Math.ceil((now() - origin) / FRAME_MS));
-      const bin = trades.get(slot) ?? { count: 0, size: 0 };
-      trades.set(slot, { count: bin.count + 1, size: bin.size + trade.size });
-      for (const old of trades.keys()) if (slot - old >= RETAINED_FRAMES) trades.delete(old);
+      aggregate.trade(trade, now() - origin);
     },
     setPreset(id) {
       getPreset(id);
@@ -133,16 +130,16 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       if (connectionId !== tick.connectionId) {
         clearSegment("new-connection"); connectionId = tick.connectionId; segmentId++;
       }
-      newestReceived = { price: tick.price, exchangeTimeMs: tick.exchangeTimeMs, elapsedMs: received - sessionStart };
+    newestReceived = { price: tick.price, mid: tick.mid, spread: tick.spread,
+      exchangeTimeMs: tick.exchangeTimeMs, elapsedMs: received - sessionStart };
       onTick(Object.freeze({ ...tick, elapsedMs: received - sessionStart, segmentId }));
       if (origin === null) {
-        origin = received;
+         origin = received;
+         aggregate = createBeatAggregator(tick.exchangeTimeMs);
         if (!audioError) { state = "buffering"; reason = "first-price"; }
-        pending.set(0, tick); build(0);
+        aggregate.tick(tick, 0);
       } else {
-        const slot = Math.max(built + 1, Math.ceil((received - origin) / FRAME_MS));
-        pending.set(slot, { ...tick, discontinuity: tick.discontinuity || pending.get(slot)?.discontinuity || false });
-        for (const old of pending.keys()) if (slot - old >= RETAINED_FRAMES) pending.delete(old);
+        aggregate.tick(tick, received - origin);
       }
       if (audioError) { state = "error"; reason = "audio-resume-failed"; }
       notify();
