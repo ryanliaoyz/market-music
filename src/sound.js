@@ -222,6 +222,7 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
       waiting = "audio-context-resume";
       try {
         await context.resume();
+        if (context.state !== "running") throw new Error("Audio is paused by the browser. Tap Play/Start to retry");
       } finally {
         waiting = null;
       }

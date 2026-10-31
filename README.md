@@ -18,7 +18,9 @@ timeline five seconds behind browser receipt time. A rolling 60-second chart fol
 that delayed timeline. Stop unsubscribes and silences audio; network drops reconnect
 and refill the buffer. The site remains entirely static on Vercel.
 Live intervals can be recorded in memory, downloaded as synthesized WAV, or shared
-as a self-contained replay link; nothing is uploaded or stored by the app.
+as a self-contained replay link; recordings are never uploaded or persisted by the app.
+The [installable mobile shell](#mobile-and-offline-use) supports offline shared
+replay and foreground-only playback with explicit tap-to-resume behavior.
 
 | Historical market feature | Mapping |
 | --- | --- |
@@ -122,6 +124,12 @@ prices on the main chart.
 
 ### Manual playback check (Ryan)
 
+- On iOS Safari and Android Chrome, check portrait/landscape controls, first-tap
+  sound, lock/unlock, and switching apps during playback and recording. Returning
+  must stay silent until Play/Start; Live must refill its five-second buffer.
+- Install from the browser's home-screen/install menu on HTTPS. After one online
+  visit and closing/reopening the app, try an offline launch and shared recording
+  link. Verify safe-area spacing and first-tap sound in standalone mode too.
 - Try SPY and NVDA: pause mid-day, seek paused and playing, change speeds, and
   switch days during playback. Old audio must stop immediately, Play must resume
   the displayed minute, and the end must stay silent until replayed.
@@ -141,8 +149,8 @@ prices on the main chart.
   then listen and compare the delayed chart with Debug. Stop during buffering and
   playback; verify immediate silence, mode switching, and a fresh buffer on Start.
 - Temporarily interrupt the network: audio must stop, reconnect visibly, and refill
-  five seconds from the first fresh price. Return from a background tab and confirm
-  there is no catch-up burst. Check Coinbase reachability and audible quality on
+   five seconds from the first fresh price. Backgrounding stops Live; return and
+   tap Start to reconnect without a catch-up burst. Check Coinbase reachability and audible quality on
   speakers/headphones; these require a real feed/browser check.
 - Record while switching presets, stop capture, download WAV, and open the copied
   link in a fresh tab. Compare replay/WAV sound and timing, including rests and the
@@ -206,13 +214,33 @@ and deployed playback check are [pending](TODO.md#m7-browser-tests-and-deploy).
 
 1. Import into Vercel with the **Other** framework preset, an empty build command,
    and output directory `.`. Serving requires no install step or environment variables.
-2. Serve `index.html`, `src/`, and `data/` together with relative paths preserved.
-   Include `vendor/` for Tone.js. Any static host supporting JavaScript modules and JSON/CSV works.
+2. Serve `index.html`, `src/`, `data/`, `vendor/`, `manifest.webmanifest`, `icons/`,
+   and root `sw.js` with relative paths preserved. Any static host supporting
+   JavaScript modules and JSON/CSV works. Serve `sw.js` with revalidation rather
+   than immutable caching; keep it at the app root for the correct scope.
 3. Open the deployed HTTPS URL, confirm data loads and Play enables audio, and run
    the [manual playback check](#manual-playback-check-ryan), including both symbols
    and Debug. Also verify Live Start/Stop and Coinbase connectivity. Live traffic
    goes directly from the browser to `wss://advanced-trade-ws.coinbase.com`; no
    Vercel functions, API keys, or proxy are needed.
+
+## Mobile and offline use
+
+Playback is foreground-only. Hiding the page pauses historical playback at its
+current minute and stops live/shared replay, finishing any active recording.
+Returning requires Play/Start; shared replay restarts from the beginning. Browser
+audio interruptions also require a fresh tap. No background audio or feed is promised.
+
+On HTTPS or localhost, a service worker caches only the static application shell.
+Historical data and Live require a connection; self-contained shared recording
+links can replay offline after the shell is installed. Audio/recordings/exports
+are never cached. See [runtime contracts](SPEC.md#mobile-and-shell-cache-contracts).
+Updates wait until existing tabs close; close all app tabs/windows and reopen to
+use a waiting version. Debug and `window.marketMusic.inspect().lifecycle` show
+visibility, interruption reason, and worker registration/update errors.
+
+Icon artwork is generated with `python3 scripts/generate-icons.py`. When changing
+shell assets, bump the cache version in `sw.js` and keep its explicit list complete.
 
 ## Known limits
 
