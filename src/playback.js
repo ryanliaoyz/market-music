@@ -44,7 +44,8 @@ export function createPlayback(features, {
     generation++;
     if (timer !== null) cancel(timer);
     timer = null;
-    engine?.stop();
+    if (["seek", "speed-change", "preset-change"].includes(reasonValue)) engine?.silence();
+    else engine?.stop();
     state = "paused";
     reason = reasonValue;
   }
