@@ -20,7 +20,7 @@ test("manifest, icons and shell-only offline launch including shared replay", as
   await page.reload();
   expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   const entries = await page.evaluate(async () => {
-    const cache = await caches.open("market-music-shell-v5");
+    const cache = await caches.open("market-music-shell-v6");
     return (await cache.keys()).map(request => new URL(request.url).pathname);
   });
   expect(entries).toContain("/src/main.js");
@@ -29,7 +29,7 @@ test("manifest, icons and shell-only offline launch including shared replay", as
   expect(entries.some(path => path.startsWith("/data/"))).toBe(false);
   expect(await page.evaluate(async () => {
     await fetch("/data/sessions.json");
-    return (await (await caches.open("market-music-shell-v5")).keys()).length;
+    return (await (await caches.open("market-music-shell-v6")).keys()).length;
   })).toBe(entries.length);
   await context.setOffline(true);
   await page.reload();
@@ -44,7 +44,7 @@ test("manifest, icons and shell-only offline launch including shared replay", as
 
 test("new shell waits for old clients and activation removes only app-owned old caches", async ({ page, context }) => {
   const source = await readFile(new URL("../sw.js", import.meta.url), "utf8");
-  let worker = source;
+  let worker = source.replace("}v6`", "}v5`");
   const types = { js: "application/javascript", css: "text/css", html: "text/html", webmanifest: "application/manifest+json", png: "image/png" };
   const server = createServer(async (request, response) => {
     const path = new URL(request.url, "http://localhost").pathname;
@@ -66,7 +66,7 @@ test("new shell waits for old clients and activation removes only app-owned old 
       await caches.open("unrelated-cache");
     });
     await page.reload();
-    worker = source.replace("}v5`", "}v6`");
+    worker = source;
     const replacementReady = context.waitForEvent("serviceworker");
     await page.evaluate(async () => { await (await navigator.serviceWorker.getRegistration()).update(); });
     const replacement = await replacementReady;
