@@ -13,7 +13,31 @@ import { renderWav } from "./wav.js";
 import { registerPwa } from "./pwa.js";
 
 const preset = document.getElementById("preset");
-for (const value of PRESETS) preset.add(new Option(value.label, value.id));
+const presetCards = document.getElementById("preset-cards");
+const selectedPreset = () => preset.querySelector("input:checked").value;
+function renderPresets(values, selectedIndex = 0) {
+  const descriptions = ["Balanced & expressive", "Soft & spacious", "Bright & playful", "Deep & driving"];
+  presetCards.replaceChildren(...values.map((value, index) => {
+    const card = document.createElement("label");
+    card.className = "preset-card";
+    const radio = document.createElement("input");
+    radio.type = "radio"; radio.name = "preset"; radio.value = value.id;
+    radio.checked = index === selectedIndex;
+    radio.setAttribute("aria-label", value.label);
+    const content = document.createElement("span");
+    content.className = "preset-content";
+    const art = document.createElement("span");
+    art.className = "preset-art"; art.setAttribute("aria-hidden", "true");
+    for (let i = 0; i < 9; i++) art.append(document.createElement("i"));
+    const name = document.createElement("span");
+    name.className = "preset-name"; name.textContent = value.label;
+    const description = document.createElement("span");
+    description.className = "preset-description"; description.textContent = descriptions[index];
+    content.append(art, name, description); card.append(radio, content);
+    return card;
+  }));
+}
+renderPresets(PRESETS);
 
 const day = document.getElementById("day");
 const controls = document.getElementById("controls");
@@ -23,6 +47,7 @@ const seek = document.getElementById("seek");
 const time = document.getElementById("time");
 const status = document.getElementById("status");
 const chart = document.getElementById("chart");
+const scene = document.getElementById("scene");
 const debugPanel = document.getElementById("debug");
 let debug = null;
 let visuals = null;
@@ -35,7 +60,7 @@ function renderLifecycle() {
   document.getElementById("lifecycle-debug").textContent = JSON.stringify({
     visibility: document.visibilityState, resumeNeeded, reason: lifecycleReason, pwa,
   }, null, 2);
-  if (resumeNeeded) status.textContent = `Playback interrupted (${lifecycleReason}). Tap ${mode.value === "live" ? "Start" : "Play"} to continue.`;
+  if (resumeNeeded) status.textContent = `Playback interrupted (${lifecycleReason}). Tap Start to continue.`;
 }
 function interrupt(why) {
   const snapshot = playback?.inspect();
@@ -83,7 +108,7 @@ function renderRecording(snapshot = playback?.inspect()) {
 function showError(cause) {
   error = cause.message;
   status.textContent = navigator.onLine === false ? "Offline. Connect to load historical sessions or start Live; shared recording links can replay offline." :
-    `Unable to play: ${error}. ${mode.value === "live" ? "Press Stop, then Start to retry." : "Try selecting the day again or pressing Play."}`;
+    `Unable to play: ${error}. ${mode.value === "live" ? "Press Stop, then Start to retry." : "Try selecting the day again or pressing Start."}`;
 }
 
 function render(snapshot) {
@@ -94,16 +119,23 @@ function render(snapshot) {
   renderLifecycle();
   renderRecording(snapshot);
   visuals?.render(snapshot);
+  const intensity = visuals?.inspect()?.intensity ?? 0;
+  scene.style.setProperty("--scene-hue", String(175 - intensity * 140));
+  scene.style.setProperty("--scene-energy", String(0.2 + intensity * 0.3));
   debug?.render(snapshot);
   const mapping = debug?.inspect();
+  scene.style.setProperty("--note-position", String((mapping?.note ?? 60) - 60));
+  const active = snapshot.mode === "live" ? snapshot.active : ["playing", "starting"].includes(snapshot.state);
+  play.textContent = active ? "Stop" : "Start";
+  play.setAttribute("aria-label", play.textContent);
+  play.setAttribute("aria-pressed", String(active));
   document.getElementById("preset-debug").textContent = `Selected: ${snapshot.presetId}; ${mapping?.presetId ?? "no audible preset"} · scale ${mapping?.scale?.join(", ") ?? "n/a"} · root ${mapping?.root ?? "n/a"} · ${mapping?.oscillator ?? "n/a"} · cutoff ${mapping?.cutoff ?? "n/a"} Hz`;
   if (snapshot.mode === "recording") {
-    play.textContent = ["playing", "starting"].includes(snapshot.state) ? "Stop" : "Play";
+    for (const radio of preset.querySelectorAll("input")) radio.checked = radio.value === snapshot.presetId;
     if (!resumeNeeded) status.textContent = `Shared recording · ${snapshot.state}`;
     return;
   }
   if (snapshot.mode === "live") {
-    play.textContent = snapshot.active ? "Stop" : "Start";
     mode.disabled = snapshot.active;
     const messages = { stopped: "Live crypto ready. Press Start to subscribe.", starting: "Starting audio…",
       waiting: "Waiting for the first BTC-USD price…", buffering: "Buffering · 5 seconds…",
@@ -116,7 +148,6 @@ function render(snapshot) {
       newestReceived: snapshot.newestReceived, delayedCursorMs: snapshot.delayedCursorMs }, null, 2);
     return;
   }
-  play.textContent = ["playing", "starting"].includes(snapshot.state) ? "Pause" : "Play";
   seek.value = snapshot.minute;
   speed.value = snapshot.speed;
   const wallMinute = 570 + snapshot.minute;
@@ -150,7 +181,7 @@ async function selectDay(sessions) {
     if (request !== selection) return;
     visuals = createVisuals(features, chart);
     debug = createDebugPanel(features, debugPanel);
-    playback = createPlayback(features, { onChange: render, presetId: preset.value });
+    playback = createPlayback(features, { onChange: render, presetId: selectedPreset() });
     render(playback.inspect());
     chart.hidden = false;
     debugPanel.hidden = false;
@@ -188,10 +219,9 @@ async function selectMode() {
   loading = true; error = null;
   const live = mode.value === "live";
   const replay = mode.value === "recording";
-  const selectedIndex = preset.selectedIndex;
-  preset.replaceChildren();
-  for (const value of live ? LIVE_PRESETS : PRESETS) preset.add(new Option(value.label, value.id));
-  preset.selectedIndex = Math.max(0, selectedIndex);
+  const selectedIndex = [...preset.querySelectorAll("input")].findIndex(input => input.checked);
+  const musicalReplay = replay && sharedClip.frames[0].presetId.endsWith("-v2");
+  renderPresets(live || musicalReplay ? LIVE_PRESETS : PRESETS, selectedIndex);
   configureMode(live || replay);
   preset.disabled = replay;
   await previous?.dispose();
@@ -212,7 +242,7 @@ async function selectMode() {
   }
   visuals = createLiveVisuals(chart);
   debug = createLiveDebugPanel(debugPanel);
-  playback = createLivePlayback({ presetId: preset.value, onSchedule: recorder.schedule, onCancel: recorder.cancel,
+  playback = createLivePlayback({ presetId: selectedPreset(), onSchedule: recorder.schedule, onCancel: recorder.cancel,
     onBoundary: recorder.boundary, onChange: snapshot => { if (request === selection) render(snapshot); } });
   feed = createLiveFeed({
     onTick: tick => { if (request === selection) playback.accept(tick); },
@@ -258,7 +288,7 @@ play.addEventListener("click", async () => {
 seek.addEventListener("input", () => playback.seek(Number(seek.value)));
 speed.addEventListener("change", () => playback.setSpeed(Number(speed.value)));
 preset.addEventListener("change", () => {
-  try { playback.setPreset(preset.value); } catch (cause) { showError(cause); }
+  try { playback.setPreset(selectedPreset()); } catch (cause) { showError(cause); }
 });
 
 async function initialize() {

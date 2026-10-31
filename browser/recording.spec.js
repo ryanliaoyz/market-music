@@ -31,7 +31,7 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   await expect(page.getByRole("button", { name: "Record", exact: true })).toBeEnabled({ timeout: 10000 });
   await page.getByRole("button", { name: "Record", exact: true }).click();
   await expect.poll(async () => (await inspect(page)).recording.frames).toBeGreaterThan(0);
-  await page.getByLabel("Sound preset").selectOption("plucky-v2");
+  await page.getByRole("radio", { name: "Plucky", exact: true }).check();
   await page.waitForTimeout(1100);
   await page.getByRole("button", { name: "Stop recording", exact: true }).click();
   await page.getByRole("button", { name: "Copy link" }).click();
@@ -53,7 +53,7 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   const bytes = await readFile(await download.path());
   expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
   expect(bytes.subarray(44).some(value => value !== 0)).toBe(true);
-  await fresh.getByRole("button", { name: "Play", exact: true }).click();
+  await fresh.getByRole("button", { name: "Start", exact: true }).click();
   await expect.poll(async () => (await inspect(fresh)).playback.state).toBe("playing");
   await fresh.close();
 });
@@ -80,7 +80,7 @@ for (const version of [1, 2]) test(`v${version} shared links replay and render e
   }, version);
   let sockets = 0; page.on("websocket", () => sockets++);
   await page.goto("/" + hash);
-  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   await context.setOffline(true);
   const downloaded = page.waitForEvent("download"); await page.getByRole("button", { name: "Download WAV" }).click();
   const download = await downloaded; expect(await download.failure()).toBeNull();
@@ -88,8 +88,10 @@ for (const version of [1, 2]) test(`v${version} shared links replay and render e
   for (let n = 0; n < 4; n++) expect(bytes.subarray(44 + n * 44100, 44 + (n + 1) * 44100).some(value => value !== 0)).toBe(true);
   await expect.poll(async () => (await inspect(page)).recording.exporting).toBe(false);
   await expect(page.locator("#recording-error")).toBeEmpty();
-  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect.poll(async () => (await inspect(page)).playback.audio.lastScheduled?.presetId).toBe(`ambient-v${version}`);
+  await expect(page.getByRole("radio", { name: "Ambient", exact: true })).toBeChecked();
+  for (const radio of await page.getByRole("radio").all()) await expect(radio).toBeDisabled();
   await expect.poll(async () => (await inspect(page)).playback.reason).toBe("replay-ended");
   expect(sockets).toBe(0);
   await context.setOffline(false);

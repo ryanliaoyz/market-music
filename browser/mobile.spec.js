@@ -35,7 +35,7 @@ test("touch layout, first-tap audio, and foreground-only historical playback", a
   expect(paused.state).toBe("paused");
   expect(paused.audio.activeVoices).toBe(0);
   await visibility(page, false);
-  await expect(page.locator("#status")).toContainText("Tap Play");
+  await expect(page.locator("#status")).toContainText("Tap Start");
   expect((await inspect(page)).playback.minute).toBe(paused.minute);
   await page.locator("#play").tap();
   await expect.poll(async () => (await inspect(page)).playback.state).toBe("playing");

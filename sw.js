@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "market-music-shell-";
-const CACHE = `${CACHE_PREFIX}v2`;
+const CACHE = `${CACHE_PREFIX}v3`;
 // Explicit shell only: data, recordings and network responses never enter this cache.
 const SHELL = [
   "./index.html", "./manifest.webmanifest", "./src/style.css",
