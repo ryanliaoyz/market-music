@@ -84,6 +84,7 @@ for (const version of [1, 2]) test(`v${version} shared links replay and render e
   }, version);
   let sockets = 0; page.on("websocket", () => sockets++);
   await page.goto("/" + hash);
+  await expect.poll(async () => (await inspect(page)).playback.mode).toBe("recording");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   await context.setOffline(true);
   await page.getByLabel("Volume", { exact: true }).fill("0");
@@ -95,9 +96,14 @@ for (const version of [1, 2]) test(`v${version} shared links replay and render e
   await expect(page.locator("#recording-error")).toBeEmpty();
   await page.getByLabel("Volume", { exact: true }).fill("100");
   await page.getByRole("button", { name: "Start", exact: true }).click();
-  await expect.poll(async () => (await inspect(page)).playback.audio.lastScheduled?.presetId).toBe(`ambient-v${version}`);
-  await expect(page.getByRole("radio", { name: "Ambient", exact: true })).toBeChecked();
-  for (const radio of await page.getByRole("radio").all()) await expect(radio).toBeDisabled();
+  // lastScheduled is lookahead, not the preset currently driving the UI.
+  await expect.poll(() => page.evaluate(() => {
+    const playback = window.marketMusic.inspect().playback;
+    const radios = [...document.querySelectorAll('input[name="preset"]')];
+    return { presetId: playback.presetId,
+      selected: radios.find(radio => radio.checked)?.getAttribute("aria-label"),
+      disabled: radios.length === 4 && radios.every(radio => radio.matches(":disabled")) };
+  }), { intervals: [25] }).toEqual({ presetId: `ambient-v${version}`, selected: "Ambient", disabled: true });
   await expect.poll(async () => (await inspect(page)).playback.reason).toBe("replay-ended");
   expect(sockets).toBe(0);
   await context.setOffline(false);
