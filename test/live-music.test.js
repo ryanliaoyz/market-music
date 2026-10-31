@@ -74,12 +74,16 @@ test("four presets have distinct rhythmic/texture output and bounded audio-clock
     const context = new AudioContext(), tone = fakeTone();
     const engine = createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone });
     engine.playMapping(mapping, { when: 11, duration: 0.47 });
-    const synths = tone.nodes.filter(node => node.trigger);
-    assert.equal(synths.length, voices.length);
-    assert.deepEqual(synths.map(node => node.trigger), voices.map(voice => [voice.hz, voice.duration, 11 + voice.offset]));
+    const synths = tone.nodes.filter(node => node.envelope.events.some(event => event[0] === "note"));
+    const scheduled = synths.flatMap(node => node.envelope.events.filter(event => event[0] === "note")
+      .map(event => [node.frequency.events.find(ramp => ramp[2] === event[2])[1], event[1], event[2]]));
+    assert.equal(scheduled.length, voices.length);
+    const sort = entries => entries.sort((a, b) => a[2] - b[2] || a[0] - b[0] || a[1] - b[1]);
+    assert.deepEqual(sort(scheduled), sort(voices.map(voice => [voice.hz, voice.duration, 11 + voice.offset])));
     engine.cancelScheduled(10.5);
-    assert.ok(synths.every(node => node.disposed));
+    assert.ok(synths.every(node => !node.disposed && node.envelope.events.every(event => event[0] !== "note")));
     await engine.dispose();
+    assert.ok(tone.nodes.every(node => node.disposed));
   }
   assert.equal(signatures.size, 4);
 });

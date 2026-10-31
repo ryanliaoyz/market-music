@@ -152,8 +152,8 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
     }
   }
 
-  function stop() {
-    toneVoices?.stop();
+  function silence() {
+    toneVoices?.silence();
     for (const { source, chain } of voices) {
       source.stop();
       for (const node of chain) node.disconnect();
@@ -168,7 +168,19 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
     last = null;
   }
 
-  function playMapping(mapping, { when, duration = 0.5, skipIfLate = false } = {}) {
+  function stop() {
+    silence();
+    toneVoices?.dispose();
+    toneVoices = null;
+  }
+
+  function prepare() {
+    assertOpen();
+    if (toneLibrary) toneVoices ??= createToneVoices(toneLibrary, context, master);
+    return toneVoices?.ready;
+  }
+
+  function playMapping(mapping, { when, duration = 0.5, skipIfLate = false, ...controls } = {}) {
     assertOpen();
     const now = context.currentTime;
     when ??= now;
@@ -178,13 +190,13 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
       if (skipIfLate) return null;
       throw new RangeError("Schedule time must be now or later");
     }
-    return schedule(mapping, when, duration);
+    return schedule(mapping, when, duration, controls);
   }
 
-  function schedule(mapping, when, duration) {
+  function schedule(mapping, when, duration, controls) {
     if (mapping.presetId !== DEFAULT_PRESET_ID) {
       toneVoices ??= createToneVoices(toneLibrary, context, master);
-      toneVoices.play(mapping, getPreset(mapping.presetId), when, duration);
+      toneVoices.play(mapping, getPreset(mapping.presetId), when, duration, { beatDuration: duration, ...controls });
     }
     if (mapping.presetId === DEFAULT_PRESET_ID) {
       for (const [type, mix] of [["triangle", 1 - mapping.intensity], ["sawtooth", mapping.intensity]]) {
@@ -208,7 +220,7 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
       drone.gain.gain.setValueAtTime(0.045, when);
       drone.gain.gain.setValueAtTime(0, when + duration);
     }
-    for (const rule of mapping.rules) hit(rule, when);
+    if (mapping.presetId === DEFAULT_PRESET_ID) for (const rule of mapping.rules) hit(rule, when);
     last = { ...mapping, rules: [...mapping.rules], when, duration };
     return { ...last, rules: [...last.rules] };
   }
@@ -222,7 +234,7 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
       output.gain.setValueAtTime(output.gain.value, context.currentTime);
       output.gain.linearRampToValueAtTime(volume, context.currentTime + 0.02);
     },
-    setPreset(id) { assertOpen(); getPreset(id); stop(); score = createSoundScore(features, { presetId: id }); },
+    setPreset(id) { assertOpen(); getPreset(id); silence(); score = createSoundScore(features, { presetId: id }); },
     cancelScheduled(time) {
       toneVoices?.cancelFrom(time);
       for (const entry of [...voices]) if (entry.when >= time) {
@@ -240,10 +252,13 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
     renderOffline() { return toneVoices ? toneVoices.render() : context.startRendering(); },
     async resume() {
       assertOpen();
+      const readiness = prepare();
       waiting = "audio-context-resume";
       try {
         await context.resume();
         if (context.state !== "running") throw new Error("Audio is paused by the browser. Tap Play/Start to retry");
+        waiting = toneVoices && !toneVoices.inspect().rack.ready ? "rack-reverb" : null;
+        await readiness;
       } finally {
         waiting = null;
       }
@@ -262,11 +277,10 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
       }
       return schedule(score.bars[index], when, duration);
     },
-    stop,
+    prepare, silence, stop,
     async dispose() {
       if (disposed) return;
       stop();
-      toneVoices?.dispose();
       master.disconnect();
       compressor.disconnect();
       lowpass.disconnect();
@@ -280,7 +294,7 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
         currentTime: context.currentTime, contextState: context.state, waiting, disposed,
         bus: { volume, lowpassHz: 14000, ceilingDbfs: -1, ceiling: peak },
         activeVoices: voices.size, droneActive: drone !== null,
-        ...toneVoices?.inspect(),
+        activeToneFrames: 0, rack: null, ...toneVoices?.inspect(),
         lastScheduled: last === null ? null : { ...last, rules: [...last.rules] },
       };
     },

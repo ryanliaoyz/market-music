@@ -26,20 +26,23 @@ test("versioned presets serialize and map known scales/registers without changin
   assert.equal(createSoundScore(prices).bars[1].note, 63);
 });
 
-test("Tone adapter schedules actual engine mappings and cleans future voices, timers and wrappers", async () => {
+test("Tone adapter schedules engine mappings, cancels automation and disposes its fixed rack on Stop", async () => {
   const context = new AudioContext(), tone = fakeTone();
   const engine = createSoundEngine(features, { context, tone, presetId: "ambient-v1" });
   await engine.resume();
   engine.playBar(0, { when: 11, duration: 0.5 });
-  const synth = tone.nodes.find(node => node.trigger);
-  assert.deepEqual(synth.trigger, [engine.score.bars[0].frequency, 0.35, 11]);
+   const synth = tone.nodes.find(node => node.envelope.events.some(event => event[0] === "note"));
+   assert.deepEqual(synth.envelope.events, [["note", 0.35, 11]]);
+   assert.deepEqual(synth.frequency.events, [["target", engine.score.bars[0].frequency, 11, 0.005]]);
   assert.equal(synth.options.oscillator.type, "sine");
   assert.equal(tone.contexts[0].options.context.currentTime, context.currentTime);
   engine.cancelScheduled(10.5);
-  assert.ok(tone.nodes.every(node => node.disposed));
+   assert.ok(tone.nodes.every(node => !node.disposed));
+   assert.ok(synth.envelope.events.every(event => event[0] !== "note"));
   assert.equal(tone.contexts[0].timers.size, 0);
   engine.playBar(0);
-  engine.stop();
+   engine.stop();
+   assert.ok(tone.nodes.every(node => node.disposed));
   assert.equal(engine.inspect().activeToneFrames, 0);
   await engine.dispose();
   assert.equal(context.state, "running");

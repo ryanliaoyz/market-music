@@ -307,14 +307,34 @@ Ambient and Classic use root 48 and minor-pentatonic `[0, 3, 5, 7, 10]`.
 Each lead spans three octaves, its drone starts an octave below the root;
 signed chromatic harmony and rule IDs remain unchanged for every preset.
 
-New presets use `src/tone-engine.js` and vendored Tone.js 15.1.22, without Transport
-or sample assets. Tone uses the engine's audio clock with zero added lookahead.
-Per-frame Synth envelopes feed a lowpass at mapping cutoff then distortion
-(`drive / 48`); lead gain is applied as synth dB volume. Native sine drones and
-deterministic event hits retain their original synthesis. Frame nodes are freed
-after their envelopes, and Stop disconnects them immediately. Tone's wrapper is
-disposed without closing the borrowed native context; the engine owns native
-closure. Classic continues through the original Web Audio graph.
+Tone presets use `src/tone-engine.js` and vendored Tone.js 15.1.22, without Transport
+or sample assets. Start prepares one rack and awaits its noise-generated reverb.
+Stop disposes the rack and its tails; restart builds a fresh rack. PolySynth pad,
+lead and arpeggio pools have 4/2/4 voices; bass is a MonoSynth. Busy polyphonic
+pools drop excess notes (reported in Debug); bass retriggers its single voice.
+The adapter preallocates PolySynth voices through the pinned version's
+`_getNextAvailableVoice` and disables its `_gcTimeout` interval: otherwise idle
+collection would force later allocation. Continuously running oscillators/noise
+and envelope-only retriggers also avoid per-note source allocation. Revisit these
+two internal APIs when upgrading Tone.
+
+Pitch, volume, cutoff, drive gain and effect timing use audio-clock
+`setTargetAtTime` automation. Pad uses sine, lead/arp triangle, bass sawtooth.
+A shared lowpass and drive gain feed fixed distortion, dotted-eighth delay
+(0.75 × beat duration; feedback 0.22, wet 0.12), then generated reverb
+(1.2 s decay, wet 0.12). All feed the existing M0 master bus. Live supplies energy,
+sixteenth hits and beat index: energy ≥2 triggers synthesized kick/hats and ducks
+pad gain to 0.72, recovering after 80 ms; energy ≥3 adds snare on alternate beats.
+Tone event hits reuse rack voices/noise. Native sine drones and historical Classic
+retain their original graph. Existing v1/v2 recordings retain their melodic
+mappings; the live signal-driven drums/ducking await the v3 control-stream codec.
+
+Lookahead cancellation removes future automation without rebuilding the rack;
+internal seek, speed/preset switches and reconnects silence it without disposal.
+Offline WAV prepares the same rack before rendering. Tone uses the engine's audio
+clock with zero added lookahead; playback retains its 25 ms/100 ms scheduler.
+The wrapper never closes a borrowed native context. `inspect().rack` exposes
+readiness, caps, occupied voices, dropped notes and the last effect/ducking decision.
 
 `createSoundScore(features)` purely maps enriched features, preserving observed
 bar indices and exchange minutes without inserting bars. Normalization uses the
@@ -344,13 +364,14 @@ Call `await engine.resume()` from a user gesture. `playBar(index, { when, durati
 schedules chronologically, without overlapping beats, on the audio clock; defaults
 are now and 0.5 seconds. It returns the mapping. Playback supplies `skipIfLate: true`
 to return null without allocating sounds when a beat expires before the engine
-reads the clock; other callers reject past times. The engine creates no timers;
-playback owns speed, rests, and seeking.
+reads the clock; other callers reject past times. Playback owns scheduling timers,
+speed, rests, and seeking; Tone's context ticker is disposed with the rack.
 
-`setPreset(id)` updates historical scoring and stops voices. Historical playback
+`setPreset(id)` updates historical scoring and silences voices. Historical playback
 restarts the displayed minute when playing and updates paused previews, preserving
 end state; a change during pending resume leaves playback paused. `cancelScheduled(time)`
-cancels only future voice graphs (used by live playback, which has no drone).
+cancels future native graphs and Tone automation (used by live playback, which has
+no drone). Tone envelopes already sounding release at the cancellation boundary.
 
 `stop()` immediately cancels/disconnects voices, drone, and queued audio, leaving
 the engine reusable. Natural voice endings release nodes. `await dispose()` also

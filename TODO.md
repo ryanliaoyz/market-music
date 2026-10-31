@@ -67,4 +67,11 @@
 - [x] Debug exposes bounded energy, contour, tension, mood, flow, hits and events, their smoothing/hysteresis state, quote age and late-trade counts.
 - [x] Offline fixture tapes produce no data rests, seeded fuzz keeps controls in range, and unit/browser regressions pass without exchange access.
 
+### M2: Sound rack (GRO-40)
+
+- [x] Start prepares a fixed, capped pad/lead/arp/bass and synthesized drum rack; Stop disposes it and restart remains playable.
+- [x] Controls ramp smoothly, dotted-eighth delay follows tempo, generated reverb needs no samples, and kicks duck the pad at energy 2 and above on the existing master bus and scheduler.
+- [x] Unit and real-Tone browser checks prove frames, preset changes and idle/retrigger allocate no new Tone nodes; playback/replay/WAV regressions pass.
+- [ ] Ryan measures CPU and listens for glitches on an older phone before adding another layer.
+
 ## Later

@@ -23,6 +23,11 @@ as a self-contained replay link; recordings are never uploaded or persisted by t
 The [installable mobile shell](#mobile-and-offline-use) supports offline shared
 replay and foreground-only playback with explicit tap-to-resume behavior.
 
+Tone sounds use a fixed instrument rack, built on Start and disposed on Stop,
+with capped voices, dotted-eighth delay and generated reverb. Live kicks gently
+duck the pad at energy 2 and above. Rack readiness, voice usage and the last
+ducking decision appear in the **Debug panel** audio JSON.
+
 | Historical market feature | Mapping |
 | --- | --- |
 | Close within the day's range | 16 C-minor-pentatonic notes, C3–C6; price line |
@@ -222,8 +227,8 @@ const engine = createSoundEngine(computeFeatures(await loadSession(sessions[0]))
 const button = document.createElement('button');
 button.textContent = 'Audition first 16 bars';
 button.onclick = async () => {
-  await engine.resume(); // Requires a user gesture.
   engine.stop();
+  await engine.resume(); // Requires a user gesture; prepares the Tone rack.
   const start = engine.inspect().currentTime + 0.1;
   for (let i = 0; i < 16; i++) {
     engine.playBar(i, { when: start + i * 0.5, duration: 0.5 });
