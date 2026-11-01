@@ -59,7 +59,7 @@ function distortionCurve(drive) {
   });
 }
 
-export function createSoundEngine(features, { context: suppliedContext, presetId = DEFAULT_PRESET_ID, volume = 1, tone: toneLibrary = globalThis.Tone } = {}) {
+export function createSoundEngine(features, { context: suppliedContext, presetId = DEFAULT_PRESET_ID, volume = 1, eventMode = false, tone: toneLibrary = globalThis.Tone } = {}) {
   const context = suppliedContext ?? new globalThis.AudioContext();
   let score = createSoundScore(features, { presetId });
   let toneVoices = null;
@@ -176,7 +176,7 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
 
   function prepare() {
     assertOpen();
-    if (toneLibrary) toneVoices ??= createToneVoices(toneLibrary, context, master);
+    if (toneLibrary) toneVoices ??= createToneVoices(toneLibrary, context, master, eventMode);
     return toneVoices?.ready;
   }
 
@@ -244,6 +244,13 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
       }
     },
     playMapping,
+    playEvents(events, { when = context.currentTime, presetId, skipIfLate = false } = {}) {
+      assertOpen();
+      toneVoices ??= createToneVoices(toneLibrary, context, master, true);
+      toneVoices.playEvents(events, presetId, when, { skipIfLate });
+      last = { renderer: "rack-v3", presetId, events: structuredClone(events), when };
+      return structuredClone(last);
+    },
     setEndpoint(time) {
       master.gain.cancelScheduledValues(context.currentTime);
       master.gain.setValueAtTime(0.6, context.currentTime);
@@ -295,7 +302,7 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
         bus: { volume, lowpassHz: 14000, ceilingDbfs: -1, ceiling: peak },
         activeVoices: voices.size, droneActive: drone !== null,
         activeToneFrames: 0, rack: null, ...toneVoices?.inspect(),
-        lastScheduled: last === null ? null : { ...last, rules: [...last.rules] },
+        lastScheduled: last === null ? null : structuredClone(last),
       };
     },
   };

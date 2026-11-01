@@ -25,7 +25,9 @@ documentation-only changes do not require a cache bump.
 
 Results have `version`, `preset`, `beat` and `events`. Event fields are `part`, optional MIDI `note`, `offset` and `duration` in seconds relative to the beat start, and linear `velocity`. `reset()` restores the initial seed; `inspect()` returns an isolated diagnostic snapshot. Implementations use distinct version IDs, and determinism is scoped to a version, seed, kit and timed input sequence.
 
-For now, the public `open-v1` stand-in returns an empty event list plus a compatibility `mapping` derived from the existing public `musicalMapping(frame, preset)`. The deployed player consumes that mapping through the existing Tone rack; recording/replay formats stay unchanged. `frame` is the legacy mapping input, not an additional private-composer dependency. This is an interface seam, not a browser loader for private code. The private composer is local/test-only until a v4 server exists; there is no private release workflow or injection step.
+The public `open-v1` stand-in returns an empty event list plus a compatibility `mapping` derived from the existing public `musicalMapping(frame, preset)`. The deployed Live mode consumes that mapping and records v2. `frame` is the legacy mapping input, not an additional private-composer dependency. The private composer is local/test-only until a v4 server exists; there is no private release workflow or injection step.
+
+`createLivePlayback` also accepts an explicit resolved `eventSource` with `advance`, `reset` and `inspect`, and a v3 kit ID. Its scheduling-time `advance({beat, controls, frame, preset})` returns `{events}`. It must tolerate skipped or replaced beats; this is an already-resolved source seam, not a direct adapter for the private consecutive-beat composer. Source ownership of lookahead/composition remains outside the browser player. No event source is installed in deployed Live mode. The player normalizes source timing/velocity to the public grid, validates it, schedules it and sends the same events to the recorder. Public fixtures exercise this path without a private checkout.
 
 ## Recording contracts
 
@@ -33,7 +35,7 @@ For now, the public `open-v1` stand-in returns an empty event list plus a compat
 lookahead at Record time. Capture starts on the next scheduled frame; cancelled
 frames are removed and preset replacements upsert the same schedule ID. Relative
 delayed playback offsets preserve rests and remain stable when rescheduling converts
-deadlines to audio-clock time again. Capture ends at 30 seconds (at most 60 frames),
+deadlines to audio-clock time again. Legacy capture ends at 30 seconds (at most 60 frames),
 manual stop, or the live segment/audio interruption boundary. Endpoints exclude
 unheard future frames; empty intervals do not create a clip. Completed clips stay
 in memory until replaced by another recording or the page is unloaded.
@@ -58,6 +60,57 @@ The mask must belong to its versioned rhythm options,
 harmony must equal the first chord note, and intensity must equal accent / 3.
 A clip cannot mix synthesis versions. Sixty frames fit comfortably below 4 KiB.
 The decoder accepts both prefixes; encoding chooses from the captured preset version.
+
+### Event-score replay v3 (GRO-42)
+
+`event-score.js` defines the public renderer contract; `recording-v3.js` owns
+`#recording=v3.`. Unlike the original live-music proposal, v3 stores resolved events,
+not controls, seed, composer state or lookahead. Composition never runs during replay
+or WAV export. Renderer/kit IDs freeze public sound definitions independently of
+composer versions. The private composer implementation never enters the public shell.
+
+Limits are 120,000 ms, 240 beat groups, 32 events per group and 65,536 ASCII hash
+characters including the prefix. V1/v2 retain their original limits and bytes.
+The unpadded base64url payload uses big-endian integers:
+
+| Record | Fields |
+| --- | --- |
+| Header (8 bytes) | uint8 product (1 = BTC-USD), uint8 renderer (0 = rack-v3), uint32 duration ms, uint16 group count |
+| Group (8 bytes) | uint32 clip-relative ms, uint8 kit, int16 change in 0.1 bp, uint8 event count |
+| Event (6 bytes) | uint8 part, uint8 MIDI note (255 = absent), uint8 offset in 5 ms, uint16 gate in 5 ms, uint8 velocity in 0.005 units |
+
+Kit order is classic-v3, ambient-v3, bass-heavy-v3, arpeggio-v3. Part order is lead,
+pad, bass, kick, hat, snare, arp, riser, stinger, cadence. Groups have strictly
+increasing 500 ms grid offsets. Event order and duplicates survive encoding; the
+renderer uses a stable chronological order for voice allocation. Offsets are
+0–495 ms, gates 5–2,000 ms and velocities 0–1. Drums omit notes; pitched parts allow
+MIDI 48–84, except bass 22–54 and arp 48–96. These are public player limits, not
+private composition rules. Invalid counts, IDs, fields, truncated/trailing bytes
+and excessive overlapping melodic voices are rejected before audio allocation.
+
+The chart stores only change from the first captured price, rounded to 0.1 bp and
+saturated to int16 (−32.768% to +32.767%). It displays percent from clip start,
+never USD, and remains labeled unverified. Saturation affects only the chart.
+
+Event capture starts at the next scheduled beat, including queued work. Event-source
+kit changes affect the next unscheduled group; already scheduled groups keep their
+kit and their complete event lists, including later attacks and ongoing gates. It does
+not include notes/effect tails already sounding before that boundary. Cancelled
+groups are removed, replacements upsert by schedule ID, and events beginning at
+or after Stop are excluded even inside a partially heard beat. Earlier events may
+have gates crossing the endpoint; replay and WAV mute at that endpoint. Silence
+and kit changes are preserved. No future controls or extra lookahead beats are
+needed: a previously decided riser is already in the score.
+
+Both replay and WAV use `sound.js` → `tone-engine.js` `playEvents`, never a composer.
+`rack-v3` uses fixed pools: pad 10, lead 4, arp 8, bass 2, riser 2, stinger 6,
+cadence 2, with a 100 ms melodic release. Capacity includes release overlap;
+unsupported scores fail rather than silently dropping notes. Drums use the existing
+synthesized kick/noise paths; recorded kick events drive ducking. Riser frequency
+ramps an octave during its gate. Kits select envelopes; pitch and velocity already
+carry arrangement decisions. The shared delay, generated reverb and safety bus
+remain public synthesis. Event equivalence means identical scheduling decisions,
+not bit-identical PCM from generated noise/reverb or different browser audio engines.
 
 The compact synthesis snapshot is deliberate: prices alone cannot reproduce the
 causal normalization preceding a mid-session capture. Version 1 fixes gain at
@@ -335,7 +388,8 @@ sixteenth hits and beat index: energy ≥2 triggers synthesized kick/hats and du
 pad gain to 0.72, recovering after 80 ms; energy ≥3 adds snare on alternate beats.
 Tone event hits reuse rack voices/noise. Native sine drones and historical Classic
 retain their original graph. Existing v1/v2 recordings retain their melodic
-mappings; the live signal-driven drums/ducking await the v3 control-stream codec.
+mappings. V3 event scores retain explicit drums and kick-driven ducking; the
+deployed legacy Live mode still captures v2 mappings.
 
 Lookahead cancellation removes future automation without rebuilding the rack;
 internal seek, speed/preset switches and reconnects silence it without disposal.

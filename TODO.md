@@ -74,4 +74,12 @@
 - [x] Unit and real-Tone browser checks prove frames, preset changes and idle/retrigger allocate no new Tone nodes; playback/replay/WAV regressions pass.
 - [ ] Ryan measures CPU and listens for glitches on an older phone before adding another layer.
 
+### M4: Event-score replay v3 (GRO-42)
+
+- [x] Versioned public event scores round-trip in v3 links up to two minutes and 64 KiB without prices, controls or private composer state.
+- [x] The public rack plays every event part, five-note pads and resolved drums/ducking with fixed voice bounds and inspectable diagnostics.
+- [x] Next-beat event-source capture preserves queued replacements, cancellations, silent beats and partial endpoints without pre-capture tails.
+- [x] Shared v3 replay and WAV schedule the same score offline without a composer; v1/v2 links and deployed Live remain compatible.
+- [x] Golden, malformed-input, scheduling and real-browser offline/audio checks pass with the documented public/private boundary.
+
 ## Later

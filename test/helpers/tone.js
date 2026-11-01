@@ -45,8 +45,8 @@ export function fakeTone() {
     dispose() { super.dispose(); this.voices.forEach(voice => voice.dispose()); }
   }
   class AmplitudeEnvelope extends Node {
-    constructor(options) { super(options); this.events = []; }
-    triggerAttackRelease(...args) { this.events.push(["note", ...args]); }
+    constructor(options) { super(options); this.events = []; this.notes = []; }
+    triggerAttackRelease(...args) { this.events.push(["note", ...args]); this.notes.push(args); }
     triggerRelease(time) { this.events.push(["release", time]); }
     cancel(time) { this.events = this.events.filter(event => event[2] < time); }
   }

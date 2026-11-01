@@ -1,5 +1,13 @@
 # Changelog
 
+## v3 — Unreleased
+
+- GRO-42: composer-free event-score replay and WAV, two-minute v3 captures with a
+  64 KiB share-link cap, all-part public synthesis and percent-only replay charts.
+  The next-beat boundary excludes pre-capture tails. V1/v2 links and deployed Live
+  capture remain supported; resolved event-source integration is explicit and does
+  not ship the private composer.
+
 ## v2.1 — Unreleased
 
 - M0: enforced CSP and deployment security headers, unverified shared-clip labeling,

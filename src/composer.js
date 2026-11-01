@@ -1,5 +1,7 @@
 import { musicalMapping } from "./live-music.js";
 
+// Resolved scores use event-score.js; replay never needs this composer interface.
+
 export const COMPOSER_VERSION = "open-v1";
 
 /**

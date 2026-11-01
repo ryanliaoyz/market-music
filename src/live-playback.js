@@ -3,15 +3,21 @@ import { getPreset } from "./presets.js";
 import { createLiveFeatures, FRAME_MS, WINDOW_FRAMES, LIVE_POLICY } from "./live-features.js";
 import { createComposer } from "./composer.js";
 import { createBeatAggregator } from "./live-aggregate.js";
+import { EVENT_KITS, RENDERER, normalizeEvents, validateEventScore } from "./event-score.js";
 
 export const DELAY_MS = 5000;
 const RETAINED_FRAMES = WINDOW_FRAMES + DELAY_MS / FRAME_MS + 2;
 
 export function createLivePlayback({ context, onChange = () => {}, onTick = () => {}, onFrame = () => {},
-  presetId = "classic-v2", volume = 1, tone, onSchedule = () => {}, onCancel = () => {}, onBoundary = () => {},
+  presetId = "classic-v2", volume = 1, tone, eventSource, onSchedule = () => {}, onCancel = () => {}, onBoundary = () => {},
   now = () => performance.now(), setInterval: every = globalThis.setInterval,
   clearInterval: cancel = globalThis.clearInterval } = {}) {
-  getPreset(presetId);
+  const checkPreset = id => {
+    if (eventSource) {
+      if (!EVENT_KITS.includes(id)) throw new RangeError(`Unknown event kit: ${id}`);
+    } else getPreset(id);
+  };
+  checkPreset(presetId);
   let features = createLiveFeatures(), engine = null, timer = null;
   let state = "stopped", reason = "created", active = false, disposed = false, generation = 0;
   let sessionStart = 0, origin = null, segmentId = 0, connectionId = null;
@@ -19,13 +25,13 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
   let audible = null, scheduled = [], newestReceived = null, audioReady = false;
   let audioError = null;
   let aggregate = null;
-  let composer = createComposer({ preset: presetId });
+  let composer = eventSource ?? createComposer({ preset: presetId });
 
   function inspect() {
     const cursor = origin === null ? null : now() - origin - DELAY_MS;
     const visible = cursor === null || cursor < 0 ? [] : frames.filter(frame => frame.sourceOffsetMs <= cursor && frame.sourceOffsetMs > cursor - 60000);
     return { mode: "live", state, reason, active, segmentId, audioError, delayMs: DELAY_MS, presetId,
-      pendingPreset: scheduled.at(0)?.frame.mapping.presetId ?? null,
+      pendingPreset: scheduled.at(0)?.frame.presetId ?? null,
       policy: LIVE_POLICY, bufferedMs: origin === null ? 0 : Math.min(DELAY_MS, Math.max(0, now() - origin)),
       queueSize: frames.filter(frame => cursor === null || frame.sourceOffsetMs > cursor).length + (aggregate?.inspect().pendingBeats ?? 0),
       delayedCursorMs: cursor === null || cursor < 0 ? null : origin - sessionStart + cursor,
@@ -85,13 +91,21 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       const frame = frames.find(item => item.slot === slot);
       if (!frame?.mapping) continue;
       const when = audioNow + (due - time) / 1000;
-      const resolved = getPreset(presetId).rhythm ? composer.advance({ beat: frame.slot, controls: frame.controls, frame }).mapping : mapSoundFrame({ index: frame.id, minute: frame.slot, close: frame.price,
-        return: frame.return, sigma: frame.sigma, event: frame.event, rollingVolatility: frame.rollingVolatility,
-        vwap: null }, frame.references, { gain: 0.11, presetId });
-      const mapping = engine.playMapping(resolved, { when, duration: 0.47, skipIfLate: true,
-        energy: frame.controls.energy, hits: frame.controls.hits, beatIndex: frame.slot, beatDuration: FRAME_MS / 1000 });
-      if (mapping) {
-        const captured = { ...frame, mapping, presetId, scheduleId: `${segmentId}:${frame.slot}`,
+      let events, mapping;
+      if (eventSource) {
+        events = normalizeEvents(eventSource.advance({ beat: frame.slot, controls: frame.controls, frame, preset: presetId }).events);
+        validateEventScore({ version: 3, renderer: RENDERER, durationMs: 500,
+          frames: [{ offsetMs: 0, presetId, change: 0, events }] });
+        engine.playEvents(events, { when, presetId, skipIfLate: true });
+      } else {
+        const resolved = getPreset(presetId).rhythm ? composer.advance({ beat: frame.slot, controls: frame.controls, frame }).mapping : mapSoundFrame({ index: frame.id, minute: frame.slot, close: frame.price,
+          return: frame.return, sigma: frame.sigma, event: frame.event, rollingVolatility: frame.rollingVolatility,
+          vwap: null }, frame.references, { gain: 0.11, presetId });
+        mapping = engine.playMapping(resolved, { when, duration: 0.47, skipIfLate: true,
+          energy: frame.controls.energy, hits: frame.controls.hits, beatIndex: frame.slot, beatDuration: FRAME_MS / 1000 });
+      }
+      if (mapping || events) {
+        const captured = { ...frame, mapping, ...(events ? { events } : {}), presetId, scheduleId: `${segmentId}:${frame.slot}`,
           when, duration: 0.47, until: when + 0.47 };
         scheduled.push({ when, frame: captured });
         onSchedule(structuredClone(captured));
@@ -111,12 +125,14 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       aggregate.trade(trade, now() - origin);
     },
     setPreset(id) {
-      getPreset(id);
+      checkPreset(id);
       if (disposed) throw new Error("Live playback is disposed");
       if (active) advance();
       presetId = id;
-      composer = createComposer({ preset: presetId });
-      if (engine) {
+      composer = eventSource ?? createComposer({ preset: presetId });
+      // Resolved groups are immutable: kit changes affect the next unscheduled beat.
+      // Cancelling the rack here would also cut events inside the current group.
+      if (engine && !eventSource) {
         const time = engine.inspect().currentTime;
         const future = scheduled.filter(item => item.when > time);
         for (const item of future) {
@@ -165,7 +181,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       const request = ++generation;
       active = true; audioReady = false; audioError = null; state = "starting"; sessionStart = now();
       connectionId = null; newestReceived = null; segmentId = 0; clearSegment("start");
-      engine ??= createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone, volume });
+      engine ??= createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone, volume, eventMode: Boolean(eventSource) });
       timer = every(advance, 25); notify();
       try { await engine.resume(); }
       catch (cause) {
