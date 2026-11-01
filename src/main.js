@@ -10,6 +10,7 @@ import { createRecorder } from "./recording.js";
 import { encodeRecording, decodeRecording } from "./recording-codec.js";
 import { createRecordingPlayback } from "./recording-playback.js";
 import { renderWav } from "./wav.js";
+import { EVENT_PRESETS } from "./event-score.js";
 import { registerPwa } from "./pwa.js";
 
 const preset = document.getElementById("preset");
@@ -100,10 +101,12 @@ function renderRecording(snapshot = playback?.inspect()) {
   record.hidden = mode.value !== "live";
   record.disabled = !snapshot?.active || snapshot.state !== "playing" && !recording;
   record.textContent = recording ? "Stop recording" : "Record";
-  document.getElementById("recording-status").textContent = mode.value === "recording" ? `${(sharedClip.durationMs / 1000).toFixed(1)} s clip` : `${info.state} · ${(info.durationMs / 1000).toFixed(1)} / 30 s`;
+   document.getElementById("recording-status").textContent = mode.value === "recording" ? `${(sharedClip.durationMs / 1000).toFixed(1)} s clip` : `${info.state} · ${(info.durationMs / 1000).toFixed(1)} / ${info.limitMs / 1000} s`;
   download.disabled = !currentClip() || exporting;
   share.disabled = !currentClip();
-  document.getElementById("recording-debug").textContent = JSON.stringify({ ...info, exporting, encodedSize,
+   document.getElementById("recording-debug").textContent = JSON.stringify({ ...info, exporting, encodedSize,
+     clip: currentClip() ? { version: currentClip().version ?? (currentClip().frames[0].presetId.endsWith("-v2") ? 2 : 1),
+       renderer: currentClip().renderer, events: currentClip().frames.reduce((count, frame) => count + (frame.events?.length ?? 0), 0) } : null,
     replay: mode.value === "recording" ? { state: snapshot?.state, elapsedMs: snapshot?.elapsedMs, reason: snapshot?.reason } : null }, null, 2);
 }
 
@@ -228,8 +231,8 @@ async function selectMode() {
   const live = mode.value === "live";
   const replay = mode.value === "recording";
   const selectedIndex = [...preset.querySelectorAll("input")].findIndex(input => input.checked);
-  const musicalReplay = replay && sharedClip.frames[0].presetId.endsWith("-v2");
-  renderPresets(live || musicalReplay ? LIVE_PRESETS : PRESETS, selectedIndex);
+  const musicalReplay = replay && sharedClip.version !== 3 && sharedClip.frames[0].presetId.endsWith("-v2");
+  renderPresets(replay && sharedClip.version === 3 ? EVENT_PRESETS : live || musicalReplay ? LIVE_PRESETS : PRESETS, selectedIndex);
   configureMode(live, replay);
   preset.disabled = replay;
   await previous?.dispose();
@@ -238,8 +241,8 @@ async function selectMode() {
   if (replay) {
     visuals = createLiveVisuals(chart); debug = createLiveDebugPanel(debugPanel);
     playback = createRecordingPlayback(sharedClip, { volume: listeningVolume(), onChange: snapshot => { if (request === selection) render(snapshot); } });
-    chart.querySelector("figcaption").textContent = "Recorded BTC-USD · relative time · USD";
-    document.getElementById("chart-title").textContent = "Recorded BTC-USD prices";
+    chart.querySelector("figcaption").textContent = sharedClip.version === 3 ? "Shared BTC-USD · relative time · % from clip start" : "Recorded BTC-USD · relative time · USD";
+    document.getElementById("chart-title").textContent = sharedClip.version === 3 ? "Shared clip · relative change" : "Recorded BTC-USD prices";
     controls.disabled = false; chart.hidden = debugPanel.hidden = false; loading = false;
     render(playback.inspect()); return;
   }

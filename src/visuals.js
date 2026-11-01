@@ -15,7 +15,8 @@ export function createLiveVisuals(svg) {
       const low = prices.length ? Math.min(...prices) : null;
       const high = prices.length ? Math.max(...prices) : null;
       const end = snapshot.latest?.slot ?? 0;
-      const px = slot => LEFT + (slot - end + 119) / 119 * WIDTH;
+      const span = snapshot.relativePrices ? 239 : 119;
+      const px = slot => LEFT + (slot - end + span) / span * WIDTH;
       const py = price => TOP + HEIGHT * (low === high ? 0.5 : 1 - (price - low) / (high - low));
       let previous = null;
       node("line").setAttribute("d", observed.map(item => {
@@ -23,8 +24,9 @@ export function createLiveVisuals(svg) {
         previous = item.slot;
         return `${command}${px(item.slot)},${py(item.price)}`;
       }).join(" "));
-      node("high").textContent = high === null ? "—" : high.toFixed(2);
-      node("low").textContent = low === null ? "—" : low.toFixed(2);
+      const label = value => value === null ? "—" : snapshot.relativePrices ? `${value.toFixed(3)}%` : value.toFixed(2);
+      node("high").textContent = label(high);
+      node("low").textContent = label(low);
       node("reveal").setAttribute("width", WIDTH);
       node("cursor").setAttribute("x1", LEFT + WIDTH);
       node("cursor").setAttribute("x2", LEFT + WIDTH);
@@ -43,7 +45,7 @@ export function createLiveVisuals(svg) {
       const flash = snapshot.state === "playing" && event && phase >= 0 ? Math.max(0, 1 - phase * 2) : 0;
       node("flash").setAttribute("fill", event === "drop" ? "#ff8b91" : "#a5f3ce");
       node("flash").setAttribute("opacity", flash * 0.35);
-      node("description").textContent = latest?.price != null ? `BTC-USD ${latest.price.toFixed(2)} USD.` : "Waiting for a fresh BTC-USD price.";
+      node("description").textContent = snapshot.relativePrices ? (latest ? `${latest.price.toFixed(3)}% from clip start · shared clip, unverified.` : "Shared clip · relative change.") : latest?.price != null ? `BTC-USD ${latest.price.toFixed(2)} USD.` : "Waiting for a fresh BTC-USD price.";
       frame = { mode: "live", close: latest?.price ?? null, intensity, event, flash,
         frameId: (snapshot.state === "playing" ? audible : latest)?.id ?? null };
     },

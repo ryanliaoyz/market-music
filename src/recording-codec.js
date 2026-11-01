@@ -1,5 +1,6 @@
 import { PRESETS, LIVE_PRESETS, getPreset } from "./presets.js";
 import { patternMapping, degreeNote } from "./live-music.js";
+import { encodeV3, decodeV3 } from "./recording-v3.js";
 
 export const MAX_DURATION_MS = 30000;
 export const MAX_FRAMES = 60;
@@ -49,6 +50,7 @@ function validate(clip) {
 }
 
 export function encodeRecording(clip) {
+  if (clip.version === 3) return encodeV3(clip);
   validate(clip);
   const musical = Boolean(getPreset(clip.frames[0].presetId).rhythm);
   const stride = musical ? 29 : STRIDE, presets = musical ? LIVE_PRESETS : PRESETS;
@@ -73,6 +75,7 @@ export function encodeRecording(clip) {
 }
 
 export function decodeRecording(hash) {
+  if (hash.startsWith("#recording=v3.")) return decodeV3(hash);
   const musical = hash.startsWith("#recording=v2.");
   if (hash.length > MAX_HASH_LENGTH || !(musical || hash.startsWith(PREFIX))) throw new Error("Invalid recording link or version");
   const stride = musical ? 29 : STRIDE, presets = musical ? LIVE_PRESETS : PRESETS;

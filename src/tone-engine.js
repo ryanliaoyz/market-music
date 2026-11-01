@@ -1,10 +1,11 @@
 import { patternVoices } from "./live-music.js";
+import { EVENT_CAPS, eventKit } from "./event-score.js";
 
 export const RACK_CAPS = Object.freeze({ pad: 4, lead: 2, arp: 4, bass: 1 });
 
 // Tone is pinned to 15.1.22. Its PolySynth pool normally grows lazily and shrinks
 // on idle. Freeze that pool here; oscillator restarts would also allocate nodes.
-export function createToneVoices(Tone, rawContext, output) {
+export function createToneVoices(Tone, rawContext, output, eventMode = false) {
   if (!Tone) throw new Error("Tone.js is unavailable. Reload the page to retry.");
   const borrowed = new Proxy(rawContext, {
     get(target, key) {
@@ -33,8 +34,9 @@ export function createToneVoices(Tone, rawContext, output) {
     return { voice, until: 0, when: 0 };
   }
   const parts = {};
-  for (const [name, cap] of Object.entries(RACK_CAPS)) {
-    if (name === "bass") {
+  const caps = eventMode ? EVENT_CAPS : RACK_CAPS;
+  for (const [name, cap] of Object.entries(caps)) {
+    if (name === "bass" && !eventMode) {
       const synth = own(new Tone.MonoSynth({ context, oscillator: { type: "sawtooth" },
         envelope: { attack: 0.01, decay: 0.08, sustain: 0.6, release: 0.12 } }));
       synth.connect(filter);
@@ -65,13 +67,17 @@ export function createToneVoices(Tone, rawContext, output) {
   const frames = [];
 
   function note(part, hz, gain, when, gate, preset) {
-    const slot = part === "bass" ? parts.bass[0] : parts[part].find(slot => slot.until <= when);
-    if (!slot) { dropped++; return; }
+    const slot = part === "bass" && !eventMode ? parts.bass[0] : parts[part].find(slot => slot.until <= when + 1e-8);
+    if (!slot) {
+      if (eventMode) throw new Error(`V3 voice capacity exceeded: ${part}`);
+      dropped++; return;
+    }
     const { voice } = slot;
     voice.envelope.attack = Math.min(preset.attack, gate / 4);
     voice.envelope.release = preset.release;
     voice.volume.setTargetAtTime(20 * Math.log10(Math.max(gain, 0.00001)), when, 0.01);
     voice.frequency.setTargetAtTime(hz, when, 0.005);
+    if (eventMode && part === "riser") voice.frequency.setTargetAtTime(hz * 2, when + gate / 2, gate / 4);
     voice.envelope.triggerAttackRelease(gate, when);
     voice.filterEnvelope?.triggerAttackRelease(gate, when);
     slot.when = when; slot.until = when + gate + preset.release;
@@ -135,8 +141,33 @@ export function createToneVoices(Tone, rawContext, output) {
     padGain.gain.cancelScheduledValues(time); padGain.gain.setTargetAtTime(1, time, 0.02);
     for (let index = frames.length - 1; index >= 0; index--) if (frames[index].when >= time) frames.splice(index, 1);
   }
+  function playEvents(events, presetId, when, { skipIfLate = false } = {}) {
+    const preset = eventKit(presetId);
+    gate.gain.setTargetAtTime(1, skipIfLate ? Math.max(when, rawContext.currentTime) : when, 0.005);
+    // Sort only for voice allocation; stable ties retain the score's event order.
+    for (const event of [...events].sort((a, b) => a.offset - b.offset)) {
+      const time = when + event.offset;
+      if (skipIfLate && time < rawContext.currentTime) continue;
+      if (event.part === "kick") {
+        kick.frequency.setValueAtTime(130, time);
+        kick.frequency.setTargetAtTime(45, time + 0.005, 0.025);
+        kick.volume.setValueAtTime(20 * Math.log10(Math.max(event.velocity, 0.00001)), time);
+        kick.envelope.triggerAttackRelease(event.duration, time);
+        padGain.gain.setTargetAtTime(0.72, time, 0.008);
+        padGain.gain.setTargetAtTime(1, time + 0.08, 0.06);
+      } else if (event.part === "hat" || event.part === "snare") {
+        drums[event.part].triggerAttackRelease(event.duration, time, event.velocity);
+      } else {
+        note(event.part, 440 * 2 ** ((event.note - 69) / 12), event.velocity, time, event.duration, preset);
+      }
+    }
+    const until = when + Math.max(0.5, ...events.map(event => event.offset + event.duration + preset.release));
+    frames.push({ when, until });
+    while (frames[0]?.until < rawContext.currentTime) frames.shift();
+    last = { renderer: "rack-v3", presetId, events: structuredClone(events), ducking: events.some(event => event.part === "kick") };
+  }
   return {
-    play, cancelFrom, ready: readiness,
+    play, playEvents, cancelFrom, ready: readiness,
     silence() {
       cancelFrom(rawContext.currentTime);
       for (const slots of Object.values(parts)) for (const slot of slots) slot.until = rawContext.currentTime;
@@ -150,7 +181,7 @@ export function createToneVoices(Tone, rawContext, output) {
       context.dispose();
     },
     inspect: () => ({ activeToneFrames: disposed ? 0 : frames.filter(frame => frame.until > rawContext.currentTime).length,
-      rack: { ready, disposed, caps: RACK_CAPS, dropped, last,
+        rack: { ready, disposed, caps, dropped, last,
         voices: Object.fromEntries(Object.entries(parts).map(([name, slots]) =>
           [name, slots.filter(slot => slot.until > rawContext.currentTime).length])) } }),
     async render() { await readiness; return context.render(); },
