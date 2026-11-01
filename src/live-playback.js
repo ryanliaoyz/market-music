@@ -1,7 +1,7 @@
 import { createSoundEngine, mapSoundFrame } from "./sound.js";
 import { getPreset } from "./presets.js";
 import { createLiveFeatures, FRAME_MS, WINDOW_FRAMES, LIVE_POLICY } from "./live-features.js";
-import { musicalMapping } from "./live-music.js";
+import { createComposer } from "./composer.js";
 import { createBeatAggregator } from "./live-aggregate.js";
 
 export const DELAY_MS = 5000;
@@ -19,6 +19,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
   let audible = null, scheduled = [], newestReceived = null, audioReady = false;
   let audioError = null;
   let aggregate = null;
+  let composer = createComposer({ preset: presetId });
 
   function inspect() {
     const cursor = origin === null ? null : now() - origin - DELAY_MS;
@@ -31,14 +32,14 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       newestReceived: structuredClone(newestReceived), frames: structuredClone(visible),
       latest: structuredClone(visible.at(-1) ?? null), audible: structuredClone(audible),
       waiting: !active || audioError ? null : !audioReady ? "audio-context-resume" : origin === null ? "first-price" : cursor < 0 ? "five-second-buffer" : null,
-      signal: features.inspectSignal(), aggregate: aggregate?.inspect() ?? null,
+      signal: features.inspectSignal(), aggregate: aggregate?.inspect() ?? null, composer: composer.inspect(),
       audio: engine?.inspect() ?? null };
   }
   function notify() { onChange(inspect()); }
   function clearSegment(why) {
     onBoundary(engine?.inspect().currentTime ?? 0, why);
     for (const item of scheduled) if (item.when > engine.inspect().currentTime) onCancel(item.frame.scheduleId);
-    engine?.silence(); features = createLiveFeatures();
+    engine?.silence(); features = createLiveFeatures(); composer.reset();
     origin = null; frames = []; built = -1; nextAudio = 0;
      aggregate = null;
     audible = null; scheduled = []; reason = why;
@@ -84,7 +85,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       const frame = frames.find(item => item.slot === slot);
       if (!frame?.mapping) continue;
       const when = audioNow + (due - time) / 1000;
-      const resolved = getPreset(presetId).rhythm ? musicalMapping(frame, presetId) : mapSoundFrame({ index: frame.id, minute: frame.slot, close: frame.price,
+      const resolved = getPreset(presetId).rhythm ? composer.advance({ beat: frame.slot, controls: frame.controls, frame }).mapping : mapSoundFrame({ index: frame.id, minute: frame.slot, close: frame.price,
         return: frame.return, sigma: frame.sigma, event: frame.event, rollingVolatility: frame.rollingVolatility,
         vwap: null }, frame.references, { gain: 0.11, presetId });
       const mapping = engine.playMapping(resolved, { when, duration: 0.47, skipIfLate: true,
@@ -114,6 +115,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       if (disposed) throw new Error("Live playback is disposed");
       if (active) advance();
       presetId = id;
+      composer = createComposer({ preset: presetId });
       if (engine) {
         const time = engine.inspect().currentTime;
         const future = scheduled.filter(item => item.when > time);

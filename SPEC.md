@@ -19,6 +19,14 @@ Version 2.1 adds musical live synthesis and `#recording=v2.` while retaining v1 
 Worker cache versions track shell changes independently of release numbering;
 documentation-only changes do not require a cache bump.
 
+## Composer boundary
+
+`src/composer.js` exports `createComposer({ seed, version, preset })`, returning `advance`, `reset` and `inspect`. `advance({ beat, controls, lookahead, frame })` accepts a zero-based 500 ms beat and M1 controls; `lookahead` is an ordered array of controls for beats k+1 through k+4. The private implementation requires consecutive beats and all four future frames. The public stand-in ignores lookahead and permits skipped beats, matching background-page scheduling.
+
+Results have `version`, `preset`, `beat` and `events`. Event fields are `part`, optional MIDI `note`, `offset` and `duration` in seconds relative to the beat start, and linear `velocity`. `reset()` restores the initial seed; `inspect()` returns an isolated diagnostic snapshot. Implementations use distinct version IDs, and determinism is scoped to a version, seed, kit and timed input sequence.
+
+For now, the public `open-v1` stand-in returns an empty event list plus a compatibility `mapping` derived from the existing public `musicalMapping(frame, preset)`. The deployed player consumes that mapping through the existing Tone rack; recording/replay formats stay unchanged. `frame` is the legacy mapping input, not an additional private-composer dependency. This is an interface seam, not a browser loader for private code. The private composer is local/test-only until a v4 server exists; there is no private release workflow or injection step.
+
 ## Recording contracts
 
 `recording.js` consumes live schedule/cancel callbacks, including already queued

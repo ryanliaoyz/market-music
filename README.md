@@ -5,6 +5,8 @@ Price sets pitch and volatility adds distortion; historical volume sets loudness
 
 ## Overview
 
+Live playback uses the small open stand-in in `src/composer.js`. It preserves the public musical mapping and exposes composer state in Debug. The real M3 composer runs only locally and in tests in the private `market-music-core` repo; no private code or build artifact is deployed here. Server execution is planned for v4. See [the composer boundary](SPEC.md#composer-boundary).
+
 Eight bundled HF Clean sessions (seven SPY days and NVDA's DeepSeek day) play in
 the browser without a backend or credentials. A full-screen dark visual follows
 price and volatility, with one large Start/Stop button and four selectable sound
