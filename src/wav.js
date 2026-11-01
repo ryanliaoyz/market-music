@@ -16,10 +16,13 @@ export function encodeWav(buffer) {
 
 export async function renderWav(clip, { OfflineContext = globalThis.OfflineAudioContext, tone = globalThis.Tone } = {}) {
   const context = new OfflineContext(1, Math.ceil(clip.durationMs * 44.1), 44100);
-  const engine = createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone });
+  const engine = createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone, eventMode: clip.version === 3 });
   try {
     await engine.prepare();
-    for (const frame of clip.frames) engine.playMapping(recordingMapping(frame), { when: frame.offsetMs / 1000, duration: 0.47 });
+    for (const frame of clip.frames) {
+      if (clip.version === 3) engine.playEvents(frame.events, { presetId: frame.presetId, when: frame.offsetMs / 1000 });
+      else engine.playMapping(recordingMapping(frame), { when: frame.offsetMs / 1000, duration: 0.47 });
+    }
     const buffer = await engine.renderOffline();
     return new Blob([encodeWav(buffer)], { type: "audio/wav" });
   } finally { await engine.dispose(); }

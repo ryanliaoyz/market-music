@@ -32,7 +32,8 @@ export function createLiveDebugPanel(root) {
         scale: mapping?.scale ?? null, root: mapping?.root ?? null, oscillator: mapping?.oscillator ?? null,
         cutoff: mapping?.cutoff ?? null, drive: mapping?.drive ?? null,
         references: current?.references ?? null, policy: snapshot.policy,
-        controls: current?.controls ?? null, signal: snapshot.signal ?? null, aggregate: snapshot.aggregate ?? null,
+         controls: current?.controls ?? null, signal: snapshot.signal ?? null, aggregate: snapshot.aggregate ?? null,
+         renderer: snapshot.renderer ?? null, events: current?.events ?? null,
         music: current ? { degree: current.degree, normalizedChange: current.normalizedChange,
           range: current.range, trend: current.trend, chord: mapping?.chord, mask: mapping?.mask,
           tradeRate: current.tradeRate, tradeSize: current.tradeSize, accent: mapping?.accent } : null };

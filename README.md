@@ -119,13 +119,22 @@ or audio suspension also seals the clip. An empty capture produces no download.
 **Download WAV** renders the clip locally with OfflineAudioContext as mono 44.1 kHz
 16-bit PCM, cut at the clip endpoint. **Copy link** displays a selectable URL and
 copies it when clipboard access is available. Its versioned hash contains the
-recording, capped at 4 KiB. Opening a link loads a paused replay; press **Start** to
-hear it. New clips use `#recording=v2.` to retain resolved chords, rhythm and accents;
+recording. Opening a link loads a paused replay; press **Start** to
+hear it. Deployed Live clips use `#recording=v2.` (30 seconds, 4 KiB) to retain resolved chords, rhythm and accents;
 existing `#recording=v1.` links keep their original sound. Captured presets are fixed
 during replay. Replay needs no exchange access. Shared links show **shared clip · unverified**:
 their prices are supplied by the link, not verified Coinbase history. Valid v1/v2
 encoder output remains supported; crafted notes outside those mappings are rejected.
 Reloading loses an unshared live recording; save the WAV or link first.
+
+`#recording=v3.` links carry resolved musical events, including drums, rather than
+re-running a composer. They support up to two minutes and 64 KiB, using the public
+versioned sound rack for both replay and WAV. Their chart shows unverified percent
+change from clip start, with no dollar prices. Capture begins at the next scheduled
+beat and excludes earlier notes/reverb already sounding; event equivalence preserves
+the score rather than promising identical noise/reverb samples. The deployed Live
+mode remains v2 until a resolved event source is connected; no private composer is
+loaded into the browser. See the [event-score contract](SPEC.md#event-score-replay-v3-gro-42).
 
 ### Diagnostics
 

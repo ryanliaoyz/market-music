@@ -1,8 +1,36 @@
 import { test, expect } from "./fixtures.js";
 import { readFile } from "node:fs/promises";
 import { encodeRecording } from "../src/recording-codec.js";
+import { eventRecording } from "../test/helpers/event-recordings.js";
 
 const inspect = page => page.evaluate(() => window.marketMusic.inspect());
+
+test("v3 all-part score replays and exports offline without a composer, with relative chart and safe peaks", async ({ page, context }) => {
+  await page.route("**/src/composer.js", route => route.fulfill({ contentType: "application/javascript",
+    body: 'export function createComposer() { throw new Error("Replay called composer"); }' }));
+  const errors = []; page.on("pageerror", error => errors.push(error.message));
+  let sockets = 0; page.on("websocket", () => sockets++);
+  await page.goto("/" + encodeRecording(eventRecording()));
+  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await page.reload();
+  await context.setOffline(true);
+  await expect(page.locator("#replay-product")).toHaveText("shared clip · unverified");
+  await expect(page.locator("#live-product")).toBeHidden();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download WAV" }).click();
+  const download = await downloaded; expect(await download.failure()).toBeNull();
+  const bytes = await readFile(await download.path());
+  expect(bytes.length).toBe(44 + Math.ceil(2400 * 44.1) * 2);
+  let peak = 0;
+  for (let at = 44; at < bytes.length; at += 2) peak = Math.max(peak, Math.abs(bytes.readInt16LE(at)) / 32768);
+  expect(peak).toBeGreaterThan(0); expect(peak).toBeLessThanOrEqual(10 ** (-1 / 20));
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await expect.poll(async () => (await inspect(page)).playback.audio?.rack?.last?.renderer).toBe("rack-v3");
+  await expect(page.locator("#chart-title")).toHaveText("Shared clip · relative change");
+  await expect.poll(async () => (await inspect(page)).playback.reason).toBe("replay-ended");
+  expect(sockets).toBe(0); expect(errors).toEqual([]);
+  await expect(page.locator("#recording-error")).toBeEmpty();
+});
 
 test("record delayed live, export WAV, and replay a self-contained link", async ({ page, context }) => {
   await page.addInitScript(() => {
