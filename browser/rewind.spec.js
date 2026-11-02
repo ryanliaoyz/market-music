@@ -25,7 +25,7 @@ test("pause selects rendered history, previews, exports and shares offline; resu
   await page.goto("/");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.reload();
-  await page.getByLabel("Mode", { exact: true }).selectOption("live");
+  await page.getByRole("tab", { name: "Live BTC" }).click();
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect.poll(async () => (await inspect(page)).rewind.durationMs, { timeout: 12000 }).toBeGreaterThan(1500);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -43,7 +43,7 @@ test("pause selects rendered history, previews, exports and shares offline; resu
   expect((await inspect(page)).rewind.preview).toBeNull();
   expect((await inspect(page)).rewind.endMs).toBe(frozen.endMs);
   await page.getByRole("button", { name: "Copy link" }).click();
-  const link = await page.getByLabel("Recording link").inputValue();
+  const link = await page.getByLabel("Share link").inputValue();
   expect(new URL(link).hash).toMatch(/^#recording=v3\./);
   expect(new URL(link).hash.length).toBeLessThanOrEqual(65536);
   const download = page.waitForEvent("download");

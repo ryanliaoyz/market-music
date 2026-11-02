@@ -29,8 +29,8 @@ async function setup(page, { catalogFailure = false, clock = true } = {}) {
     }
   });
   if (catalogFailure) await page.route("**/sessions.json", route => route.fulfill({ status: 503, body: "unavailable" }));
-  await page.goto("/");
-  await page.getByLabel("Mode", { exact: true }).selectOption("live");
+  await page.goto("/?debug");
+  await page.getByRole("tab", { name: "Live BTC" }).click();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   expect(sockets).toHaveLength(0);
   const start = async () => {
@@ -57,7 +57,7 @@ test("Start subscribes, buffers five seconds, and renders only delayed prices; S
   expect(mock.subscriptions).toEqual([{ type: "subscribe", channel: "ticker", product_ids: ["BTC-USD"] },
     { type: "subscribe", channel: "market_trades", product_ids: ["BTC-USD"] },
     { type: "subscribe", channel: "heartbeats" }]);
-  await expect(page.getByLabel("Mode", { exact: true })).toBeDisabled();
+  await expect(page.getByRole("tab", { name: "Replay a day" })).toBeDisabled();
   await expect(page.getByLabel("Speed")).toBeHidden();
   await expect(page.getByRole("slider", { name: "Session time (New York)" })).toBeHidden();
   mock.send(0, 100); await expect(page.locator("#status")).toContainText("Buffering");
@@ -77,8 +77,8 @@ test("Start subscribes, buffers five seconds, and renders only delayed prices; S
     { type: "unsubscribe", channel: "market_trades", product_ids: ["BTC-USD"] },
     { type: "unsubscribe", channel: "heartbeats" }]);
   expect((await inspect(page)).playback.frames).toEqual([]);
-  await expect(page.getByLabel("Mode", { exact: true })).toBeEnabled();
-  await page.getByLabel("Mode", { exact: true }).selectOption("historical");
+  await expect(page.getByRole("tab", { name: "Replay a day" })).toBeEnabled();
+  await page.getByRole("tab", { name: "Replay a day" }).click();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   expect((await inspect(page)).playback.audio).toBeNull();
   await page.locator("#play").click();
@@ -146,15 +146,18 @@ test("network drops reconnect and refill; quiet markets keep the socket open", a
   expect(mock.errors).toEqual([]);
 });
 
-test("subscription error leaves Stop available; restart recovers despite catalog failure", async ({ page }) => {
+test("subscription error offers Retry, which recovers despite catalog failure", async ({ page }) => {
   const mock = await setup(page, { catalogFailure: true }); await mock.start();
   mock.sockets[0].send(JSON.stringify({ type: "error", message: "Subscription unavailable" }));
-  await expect(page.locator("#status")).toHaveText("Live unavailable. Press Stop, then Start to retry.");
+  await expect(page.locator("#status")).toHaveText("Live unavailable. Press Retry.");
+  await expect(page.locator("#play")).toHaveAttribute("aria-pressed", "false");
   await page.getByText("Debug panel", { exact: true }).click();
   await expect(page.locator("#feed-debug")).toContainText("Subscription unavailable");
   expect(mock.closed).toHaveLength(0);
-  await page.getByRole("button", { name: "Stop", exact: true }).click();
-  await mock.start(); mock.send(0, 200);
+  const sockets = mock.sockets.length;
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect.poll(() => mock.sockets.length).toBe(sockets + 1);
+  mock.send(0, 200);
   await expect(page.locator("#status")).toContainText("Buffering");
   await mock.advance(5000); expect((await inspect(page)).visuals.close).toBe(200);
   expect((await inspect(page)).error).toBeNull();
@@ -169,12 +172,12 @@ test("Stop during buffering/reconnect cancels work; live mobile controls and red
   await expect(page.locator("#status")).toContainText("Buffering");
   await page.getByText("Debug panel", { exact: true }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  for (const locator of [page.getByLabel("Mode", { exact: true }), page.getByRole("button", { name: "Stop", exact: true }), page.locator("#debug summary")]) {
+  for (const locator of [page.getByRole("tab", { name: "Live BTC" }), page.getByRole("button", { name: "Stop", exact: true }), page.locator("#debug summary")]) {
     const box = await locator.boundingBox(); expect(box.height).toBeGreaterThanOrEqual(44);
   }
   await expect(page.locator(".event-flash")).toHaveCSS("visibility", "hidden");
   await page.getByRole("button", { name: "Stop", exact: true }).click();
-  await page.getByLabel("Mode", { exact: true }).focus(); await page.keyboard.press("Tab");
+  await page.getByRole("tab", { name: "Live BTC" }).focus(); await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeFocused();
   await mock.start(); mock.sockets.at(-1).close({ code: 1011 });
   await expect(page.locator("#status")).toContainText("Reconnecting");

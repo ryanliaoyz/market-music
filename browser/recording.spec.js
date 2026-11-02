@@ -56,7 +56,7 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
     }, 250);
     socket.onClose(() => clearInterval(timer));
   });
-  await page.goto("/"); await page.getByLabel("Mode", { exact: true }).selectOption("live");
+  await page.goto("/"); await page.getByRole("tab", { name: "Live BTC" }).click();
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.getByRole("button", { name: "Record", exact: true })).toBeEnabled({ timeout: 10000 });
   await page.getByRole("button", { name: "Record", exact: true }).click();
@@ -66,14 +66,14 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   await page.getByRole("button", { name: "Stop recording", exact: true }).click();
   await page.getByRole("button", { name: "Copy link" }).click();
   await expect(page.locator("#recording-error")).toBeEmpty();
-  const linkInput = page.getByLabel("Recording link");
+  const linkInput = page.getByLabel("Share link");
   await expect(linkInput).toBeVisible();
   await expect(linkInput).toHaveValue(/^https?:\/\/.+#recording=v3\./);
   const link = await linkInput.inputValue();
   expect(await page.evaluate(() => window.copiedLink)).toBe(link);
   await page.evaluate(link => { location.hash = new URL(link).hash; }, link);
-  await expect(page.getByLabel("Mode", { exact: true })).toBeEnabled();
-  await page.getByLabel("Mode", { exact: true }).selectOption("historical");
+  await expect(page.getByRole("tab", { name: "Replay a day" })).toBeEnabled();
+  await page.getByRole("tab", { name: "Replay a day" }).click();
   const fresh = await context.newPage();
   await fresh.goto(link);
   expect((await inspect(fresh)).sharedClip.frames.some(frame => frame.presetId === "arpeggio-v3")).toBe(true);
@@ -94,7 +94,7 @@ test("recording controls work while the historical catalog is stalled", async ({
   await page.route("**/sessions.json", () => {});
   await page.goto("/" + hash, { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Copy link" }).click();
-  await expect(page.getByLabel("Recording link")).toHaveValue(new RegExp("#recording=v1"));
+  await expect(page.getByLabel("Share link")).toHaveValue(new RegExp("#recording=v1"));
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download WAV" }).click();
   expect(await (await downloaded).failure()).toBeNull();

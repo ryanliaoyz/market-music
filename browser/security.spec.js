@@ -15,7 +15,7 @@ for (const clip of [recordingCorpus()[0], recordingCorpus()[4]]) {
     await page.getByLabel("Volume", { exact: true }).fill("0");
     await expect.poll(() => page.evaluate(() => window.marketMusic.inspect().playback.audio.bus.volume)).toBe(0);
     await page.locator("#play").click();
-    await page.getByLabel("Mode", { exact: true }).selectOption("live");
+    await page.getByRole("tab", { name: "Live BTC" }).click();
     await expect(page.locator("#live-product")).toBeVisible();
     await expect(page.locator("#replay-product")).toBeHidden();
     await expect(page.getByLabel("Volume", { exact: true })).toHaveValue("0");

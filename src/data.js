@@ -18,6 +18,7 @@ export async function loadCatalog(fetchFile = fetch) {
       || !/^\d{4}-\d{2}-\d{2}$/.test(previousDate) || previousDate >= date
       || !Number.isFinite(previousClose) || previousClose <= 0
       || typeof title !== "string" || !title
+      || (session.summary !== undefined && (typeof session.summary !== "string" || !session.summary || session.summary.length > 160))
       || ![session.gapReturn, session.sessionReturn, session.dailyReturn,
         session.realizedVolatility].every(Number.isFinite)
       || session.realizedVolatility < 0) {

@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   const errors = [];
   pageErrors.set(page, errors);
   page.on("pageerror", error => errors.push(error.message));
-  await page.goto("/");
+  await page.goto("/?debug");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   await page.getByText("Debug panel", { exact: true }).click();
 });
@@ -23,7 +23,7 @@ test.afterEach(({ page }) => {
 });
 
 test("bundled session loads paused and debug previews follow keyboard seeking", async ({ page }) => {
-  await expect(page.getByLabel("Trading day").locator("option")).toHaveCount(8);
+  await expect(page.locator('input[name="day"]')).toHaveCount(8);
   await expect(page.locator("#status")).toContainText("383 observed minutes");
   await expect(page.getByLabel("Speed")).toHaveValue("1.625");
   await expect(field(page, "state")).toHaveText("paused · mapping preview");
@@ -93,7 +93,7 @@ test("all Tone presets run on real Web Audio and switch during playback", async 
   }
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   expect((await inspect(page)).playback.audio.activeToneFrames).toBe(0);
-  await page.getByLabel("Mode", { exact: true }).selectOption("live");
+  await page.getByRole("tab", { name: "Live BTC" }).click();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   expect(await page.evaluate(async () => {
     const { createSoundEngine } = await import("/src/sound.js");
@@ -160,7 +160,7 @@ test("switching sessions during playback hides stale values and loads paused", a
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect(field(page, "state")).toHaveText("playing");
   try {
-    await page.getByLabel("Trading day").selectOption("NVDA-2025-01-27");
+    await page.locator('input[name="day"][value="NVDA-2025-01-27"]').check();
     await expect(page.locator("#status")).toHaveText("Loading session…");
     await expect(page.locator("#play")).toBeDisabled();
     await expect(page.locator("#chart")).toBeHidden();
@@ -183,13 +183,13 @@ test("switching sessions during playback hides stale values and loads paused", a
 
 test("failed session fetch shows an actionable error and another day recovers", async ({ page }) => {
   await page.route("**/NVDA-2025-01-27.csv", route => route.fulfill({ status: 503, body: "Unavailable" }));
-  await page.getByLabel("Trading day").selectOption("NVDA-2025-01-27");
+  await page.locator('input[name="day"][value="NVDA-2025-01-27"]').check();
   await expect(page.locator("#status")).toHaveText("Unable to play. Try selecting the day again or pressing Start.");
   expect(await page.evaluate(() => window.marketMusic.inspect().error)).toContain("HTTP 503");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeDisabled();
   await expect(page.locator("#debug")).toBeHidden();
   await expect(page.locator("#chart")).toBeHidden();
-  await page.getByLabel("Trading day").selectOption("SPY-2022-09-13");
+  await page.locator('input[name="day"][value="SPY-2022-09-13"]').check();
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeEnabled();
   await expect(field(page, "state")).toHaveText("paused · mapping preview");
   expect((await inspect(page)).error).toBeNull();

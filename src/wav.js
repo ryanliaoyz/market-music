@@ -14,6 +14,31 @@ export function encodeWav(buffer) {
   return bytes;
 }
 
+export const MAX_DAY_CLIP_SECONDS = 240;
+const TAIL_SECONDS = 1.5;
+
+// Renders an inclusive minute range of a historical day at the listener's speed and sound.
+export async function renderDayWav(features, { presetId, speed, from, to },
+  { OfflineContext = globalThis.OfflineAudioContext, tone = globalThis.Tone } = {}) {
+  const beat = 0.5 / speed;
+  const seconds = (to - from + 1) * beat;
+  if (seconds > MAX_DAY_CLIP_SECONDS) {
+    throw new RangeError(`This clip is ${Math.ceil(seconds / 60)} minutes of audio. Shorten it or raise the speed (limit ${MAX_DAY_CLIP_SECONDS / 60} minutes).`);
+  }
+  const context = new OfflineContext(1, Math.ceil((seconds + TAIL_SECONDS) * 44100), 44100);
+  const engine = createSoundEngine(features, { context, tone, presetId });
+  const indices = new Map(features.bars.map((bar, index) => [bar.minute, index]));
+  try {
+    await engine.prepare();
+    for (let minute = from; minute <= to; minute++) {
+      const index = indices.get(minute);
+      if (index !== undefined) engine.playBar(index, { when: (minute - from) * beat, duration: beat });
+    }
+    const buffer = await engine.renderOffline();
+    return new Blob([encodeWav(buffer)], { type: "audio/wav" });
+  } finally { await engine.dispose(); }
+}
+
 export async function renderWav(clip, { OfflineContext = globalThis.OfflineAudioContext, tone = globalThis.Tone } = {}) {
   const context = new OfflineContext(1, Math.ceil(clip.durationMs * 44.1), 44100);
   const engine = createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone, eventMode: clip.version === 3 });
