@@ -4,9 +4,9 @@ export const EVENT_KITS = Object.freeze(["classic-v3", "ambient-v3", "bass-heavy
 export const EVENT_PRESETS = Object.freeze(EVENT_KITS.map((id, index) => Object.freeze({ id, label: ["Classic", "Ambient", "Bass-heavy", "Arpeggio"][index] })));
 export const EVENT_PARTS = Object.freeze(["lead", "pad", "bass", "kick", "hat", "snare", "arp", "riser", "stinger", "cadence"]);
 export const EVENT_CAPS = Object.freeze({ pad: 10, lead: 4, arp: 8, bass: 2, riser: 2, stinger: 6, cadence: 2 });
-export const V3_DURATION_MS = 120000;
+export const V3_DURATION_MS = 180000;
 export const V3_HASH_LENGTH = 65536;
-export const V3_FRAMES = 240;
+export const V3_FRAMES = 360;
 export const V3_EVENTS = 32;
 export const eventKit = id => ({ id, attack: id === "ambient-v3" ? 0.08 : 0.01, release: 0.1 });
 

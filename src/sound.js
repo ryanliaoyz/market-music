@@ -247,8 +247,8 @@ export function createSoundEngine(features, { context: suppliedContext, presetId
     playEvents(events, { when = context.currentTime, presetId, skipIfLate = false } = {}) {
       assertOpen();
       toneVoices ??= createToneVoices(toneLibrary, context, master, true);
-      toneVoices.playEvents(events, presetId, when, { skipIfLate });
-      last = { renderer: "rack-v3", presetId, events: structuredClone(events), when };
+      const played = toneVoices.playEvents(events, presetId, when, { skipIfLate });
+      last = { renderer: "rack-v3", presetId, events: structuredClone(played), when };
       return structuredClone(last);
     },
     setEndpoint(time) {

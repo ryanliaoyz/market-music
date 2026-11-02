@@ -29,7 +29,7 @@ test("two minutes at the maximum event count fits 64 KiB; malformed v3 input is 
   assert.ok(hash.length <= 65536); assert.ok(hash.length > 4096);
   assert.deepEqual(decodeRecording(hash), full);
   const score = eventRecording();
-  for (const change of [{ renderer: "future" }, { durationMs: 120001 }, { frames: [] }, { frames: Array(241).fill(score.frames[0]) }])
+  for (const change of [{ renderer: "future" }, { durationMs: 180001 }, { frames: [] }, { frames: Array(361).fill(score.frames[0]) }])
     assert.throws(() => encodeRecording({ ...score, ...change }));
   for (const change of [{ part: "future" }, { note: 127 }, { offset: NaN }, { offset: 0.5 }, { duration: 2.005 }, { velocity: 1.005 }, { velocity: Infinity }]) {
     const bad = structuredClone(score); Object.assign(bad.frames[0].events[0], change);

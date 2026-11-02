@@ -15,7 +15,7 @@ export function createLiveVisuals(svg) {
       const low = prices.length ? Math.min(...prices) : null;
       const high = prices.length ? Math.max(...prices) : null;
       const end = snapshot.latest?.slot ?? 0;
-      const span = snapshot.relativePrices ? 239 : 119;
+      const span = snapshot.relativePrices ? Math.max(1, Math.ceil(snapshot.durationMs / 500) - 1) : 119;
       const px = slot => LEFT + (slot - end + span) / span * WIDTH;
       const py = price => TOP + HEIGHT * (low === high ? 0.5 : 1 - (price - low) / (high - low));
       let previous = null;
@@ -37,7 +37,7 @@ export function createLiveVisuals(svg) {
         node("point").setAttribute("cy", py(latest.price));
       }
       const mapping = snapshot.state === "playing" ? snapshot.audible?.mapping : latest?.mapping;
-      const intensity = mapping?.intensity ?? 0;
+      const intensity = mapping?.intensity ?? (snapshot.audible?.controls?.energy ?? 0) / 4;
       node("background").setAttribute("fill", `hsl(${220 - intensity * 195} 45% ${12 + intensity * 12}%)`);
       const audible = snapshot.audible;
       const phase = audible ? (snapshot.audio.currentTime - audible.when) / 0.47 : 1;
@@ -45,7 +45,7 @@ export function createLiveVisuals(svg) {
       const flash = snapshot.state === "playing" && event && phase >= 0 ? Math.max(0, 1 - phase * 2) : 0;
       node("flash").setAttribute("fill", event === "drop" ? "#ff8b91" : "#a5f3ce");
       node("flash").setAttribute("opacity", flash * 0.35);
-      node("description").textContent = snapshot.relativePrices ? (latest ? `${latest.price.toFixed(3)}% from clip start · shared clip, unverified.` : "Shared clip · relative change.") : latest?.price != null ? `BTC-USD ${latest.price.toFixed(2)} USD.` : "Waiting for a fresh BTC-USD price.";
+      node("description").textContent = snapshot.eventOnly ? `Event replay · ${(snapshot.elapsedMs / 1000).toFixed(1)} seconds.` : snapshot.relativePrices ? (latest ? `${latest.price.toFixed(3)}% from clip start · shared clip, unverified.` : "Shared clip · relative change.") : latest?.price != null ? `BTC-USD ${latest.price.toFixed(2)} USD.` : "Waiting for a fresh BTC-USD price.";
       frame = { mode: "live", close: latest?.price ?? null, intensity, event, flash,
         frameId: (snapshot.state === "playing" ? audible : latest)?.id ?? null };
     },

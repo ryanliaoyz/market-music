@@ -5,15 +5,16 @@ export function createRecordingPlayback(clip, { context, onChange = () => {}, to
   setInterval: every = globalThis.setInterval, clearInterval: cancel = globalThis.clearInterval } = {}) {
   let engine = null;
   let state = "stopped", reason = "shared-recording", start = 0, timer = null, generation = 0, next = 0;
+  const eventOnly = clip.version === 3 && clip.frames.every(frame => frame.change === 0);
   const frames = clip.frames.map((frame, index) => ({ ...frame, id: index, slot: Math.round(frame.offsetMs / 500),
-    exchangeTimeMs: frame.offsetMs, ...(clip.version === 3 ? { price: frame.change / 1000 } : { mapping: recordingMapping(frame) }) }));
+    exchangeTimeMs: frame.offsetMs, ...(clip.version === 3 ? { price: eventOnly ? null : frame.change / 1000 } : { mapping: recordingMapping(frame) }) }));
   function inspect() {
     const elapsed = state === "playing" ? Math.max(0, (engine.inspect().currentTime - start) * 1000) : 0;
     const visible = frames.filter(frame => frame.offsetMs <= elapsed);
     const latest = state === "playing" ? visible.at(-1) ?? null : null;
     const audible = latest && elapsed < latest.offsetMs + 470 ? { ...latest, when: start + latest.offsetMs / 1000 } : null;
     return { mode: "recording", state, reason, elapsedMs: elapsed, durationMs: clip.durationMs,
-      version: clip.version, renderer: clip.renderer, relativePrices: clip.version === 3,
+       version: clip.version, renderer: clip.renderer, relativePrices: clip.version === 3, eventOnly,
       presetId: latest?.presetId ?? frames[0].presetId, frames: state === "playing" ? visible : [], latest, audible,
       waiting: state === "starting" ? "audio-context-resume" : null, audio: engine?.inspect() ?? null };
   }

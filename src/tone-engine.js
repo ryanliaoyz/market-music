@@ -143,11 +143,13 @@ export function createToneVoices(Tone, rawContext, output, eventMode = false) {
   }
   function playEvents(events, presetId, when, { skipIfLate = false } = {}) {
     const preset = eventKit(presetId);
+    const played = [];
     gate.gain.setTargetAtTime(1, skipIfLate ? Math.max(when, rawContext.currentTime) : when, 0.005);
     // Sort only for voice allocation; stable ties retain the score's event order.
     for (const event of [...events].sort((a, b) => a.offset - b.offset)) {
       const time = when + event.offset;
       if (skipIfLate && time < rawContext.currentTime) continue;
+      played.push(event);
       if (event.part === "kick") {
         kick.frequency.setValueAtTime(130, time);
         kick.frequency.setTargetAtTime(45, time + 0.005, 0.025);
@@ -164,7 +166,9 @@ export function createToneVoices(Tone, rawContext, output, eventMode = false) {
     const until = when + Math.max(0.5, ...events.map(event => event.offset + event.duration + preset.release));
     frames.push({ when, until });
     while (frames[0]?.until < rawContext.currentTime) frames.shift();
-    last = { renderer: "rack-v3", presetId, events: structuredClone(events), ducking: events.some(event => event.part === "kick") };
+    const accepted = events.filter(event => played.includes(event));
+    last = { renderer: "rack-v3", presetId, events: structuredClone(accepted), ducking: accepted.some(event => event.part === "kick") };
+    return accepted;
   }
   return {
     play, playEvents, cancelFrom, ready: readiness,
