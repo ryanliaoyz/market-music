@@ -61,8 +61,18 @@ test("catalog boundary rejects malformed entries, duplicate IDs and unsafe paths
     [{ ...catalog[0], file: "../outside.csv" }],
     [{ ...catalog[0], previousClose: 0 }],
     [{ ...catalog[0], barCount: 391 }],
-    [{ ...catalog[0], realizedVolatility: -1 }]]) {
+    [{ ...catalog[0], realizedVolatility: -1 }],
+    [{ ...catalog[0], summary: "" }],
+    [{ ...catalog[0], summary: 42 }],
+    [{ ...catalog[0], summary: "x".repeat(161) }]]) {
     await assert.rejects(loadCatalog(async () => Response.json(value)), /Invalid session catalog/);
+  }
+});
+
+test("every bundled day has a short summary that does not state its outcome", async () => {
+  for (const session of await loadCatalog(fetchFile)) {
+    assert.ok(session.summary && session.summary.length <= 160, session.id);
+    assert.doesNotMatch(session.summary, /%|\bclosed? (up|down)\b/i, session.id);
   }
 });
 

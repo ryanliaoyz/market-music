@@ -20,18 +20,21 @@ export function createPlayback(features, {
   let timer = null;
   let generation = 0;
   let reason = "session-loaded";
+  // Inclusive minute range; a shared or exported clip plays only these minutes.
+  let range = { from: 0, to: 389 };
+  const end = () => range.to + 1;
 
   const duration = () => 0.5 / speed;
   const clock = () => engine.inspect().currentTime;
   function cursor() {
     if (state !== "playing") return minute;
-    return Math.min(390, startMinute + Math.max(0, clock() - origin) / duration());
+    return Math.min(end(), startMinute + Math.max(0, clock() - origin) / duration());
   }
   function inspect() {
     const position = cursor();
     const currentMinute = Math.min(389, Math.floor(position));
     return {
-      session: features.session.id, state, speed, position, presetId,
+      session: features.session.id, state, speed, position, presetId, range: { ...range },
       minute: currentMinute, barIndex: indices.get(currentMinute) ?? null,
       nextMinute, reason, waiting: state === "starting" ? "audio-resume" :
         state === "playing" ? "audio-clock" : null,
@@ -44,22 +47,22 @@ export function createPlayback(features, {
     generation++;
     if (timer !== null) cancel(timer);
     timer = null;
-    if (["seek", "speed-change", "preset-change"].includes(reasonValue)) engine?.silence();
+    if (["seek", "speed-change", "preset-change", "range-change"].includes(reasonValue)) engine?.silence();
     else engine?.stop();
     state = "paused";
     reason = reasonValue;
   }
   function tick() {
     const now = clock();
-    if (cursor() >= 390) {
+    if (cursor() >= end()) {
       stop("session-ended");
-      minute = 390;
+      minute = end();
       state = "ended";
       notify();
       return;
     }
     // A throttled tab skips expired beats rather than bursting overdue sounds.
-    while (nextMinute < 390) {
+    while (nextMinute < end()) {
       const when = origin + (nextMinute - startMinute) * duration();
       if (when > now + 0.1) break;
       const index = indices.get(nextMinute);
@@ -85,7 +88,7 @@ export function createPlayback(features, {
     async play() {
       if (state === "disposed") throw new Error("Playback is disposed");
       if (state === "playing" || state === "starting") return;
-      if (state === "ended") minute = 0;
+      if (state === "ended") minute = range.from;
       engine ??= createSoundEngine(features, { context, presetId, tone, volume });
       const request = ++generation;
       state = "starting";
@@ -113,7 +116,7 @@ export function createPlayback(features, {
       if (state === "disposed") throw new Error("Playback is disposed");
       const playing = state === "playing";
       stop("seek");
-      minute = value;
+      minute = Math.max(range.from, Math.min(range.to, value));
       if (playing) start();
       reason = "seek";
       notify();
@@ -127,7 +130,7 @@ export function createPlayback(features, {
       speed = value;
       if (ended) {
         state = "ended";
-        minute = 390;
+        minute = end();
       }
       if (playing) start();
       reason = "speed-change";
@@ -140,9 +143,20 @@ export function createPlayback(features, {
       stop("preset-change");
       presetId = id;
       engine?.setPreset(id);
-      if (ended) { state = "ended"; minute = 390; }
+      if (ended) { state = "ended"; minute = end(); }
       if (playing) start();
       reason = "preset-change";
+      notify();
+    },
+    setRange(from, to) {
+      if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to > 389 || from >= to) throw new RangeError("Invalid clip range");
+      if (state === "disposed") throw new Error("Playback is disposed");
+      const playing = state === "playing", ended = state === "ended";
+      stop("range-change");
+      range = { from, to };
+      if (ended || minute < from || minute > to) minute = from;
+      if (playing) start();
+      reason = "range-change";
       notify();
     },
     async dispose() {

@@ -8,17 +8,26 @@ from collections import defaultdict
 from pathlib import Path
 
 
+# Date -> (title, one-line context shown on the day card; no price outcome).
 SESSIONS = {
     "SPY": {
-        "2022-09-13": "Hot CPI selloff",
-        "2023-12-26": "Calm control",
-        "2024-08-05": "Global selloff",
-        "2025-01-27": "DeepSeek shock",
-        "2025-04-03": "Tariff crash, day one",
-        "2025-04-04": "Tariff crash, day two",
-        "2025-04-09": "Tariff pause rally",
+        "2022-09-13": ("Hot CPI selloff",
+                       "August inflation came in hotter than expected an hour before the open."),
+        "2023-12-26": ("Calm control",
+                       "The quietest session of 2023, the day after Christmas. A baseline for comparison."),
+        "2024-08-05": ("Global selloff",
+                       "Japan's market plunged overnight as the yen carry trade unwound."),
+        "2025-01-27": ("DeepSeek shock",
+                       "A Chinese lab's low-cost AI model put the AI boom in question over the weekend."),
+        "2025-04-03": ("Tariff crash, day one",
+                       "The morning after sweeping new US tariffs were announced."),
+        "2025-04-04": ("Tariff crash, day two",
+                       "China announced retaliatory tariffs before the open."),
+        "2025-04-09": ("Tariff pause rally",
+                       "Sweeping new tariffs took effect at midnight."),
     },
-    "NVDA": {"2025-01-27": "DeepSeek shock"},
+    "NVDA": {"2025-01-27": ("DeepSeek shock",
+                       "Nvidia, the AI-chip leader, on the first trading day after DeepSeek's model went viral.")},
 }
 
 
@@ -52,7 +61,7 @@ def main():
                           if date.startswith("2023") and date not in ("2023-07-03", "2023-11-24")}
             assert len(candidates) == 248
             assert min(candidates, key=candidates.get) == "2023-12-26"
-        for date, title in sessions.items():
+        for date, (title, summary) in sessions.items():
             rows = days[date]
             previous_date = dates[dates.index(date) - 1]
             previous_close = float(days[previous_date][-1]["Close"])
@@ -66,7 +75,7 @@ def main():
                     writer.writerow([row["datetime"].replace(" ", "T"),
                                      *(row[column] for column in ("Open", "High", "Low", "Close", "Volume"))])
             catalog.append({
-                "id": f"{symbol}-{date}", "symbol": symbol, "date": date, "title": title,
+                "id": f"{symbol}-{date}", "symbol": symbol, "date": date, "title": title, "summary": summary,
                 "file": filename, "barCount": len(rows),
                 "previousDate": previous_date, "previousClose": previous_close,
                 "gapReturn": opening / previous_close - 1,

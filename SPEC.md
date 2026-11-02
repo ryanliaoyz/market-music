@@ -213,7 +213,7 @@ retain their separate contracts below.
   opens `wss://advanced-trade-ws.coinbase.com`, subscribing separately to public
   `ticker` and `market_trades` for `BTC-USD`, plus `heartbeats`, with no JWT. Stop sends unsubscribe
   messages when open, closes the socket, cancels retries/audio, and clears the
-  session. Mode selection is disabled while active. Pause disconnects and preserves
+  session. The mode tabs are disabled while active. Pause disconnects and preserves
   rewind history; Resume live refills from fresh quotes.
 - States are stopped, starting, waiting for first price, buffering, playing,
   paused, reconnecting, and error. Subscription errors leave Stop available and do not
@@ -531,7 +531,26 @@ without its own timer/event queue or the sound engine's lookahead mapping.
   `window.marketMusic.inspect().visuals` exposes rendered position, minute, close
   (null for rests), intensity, event, flash strength, and waiting/transition reason.
 
+### Mode tabs, day cards and day links
+
+- Modes are an ARIA tablist (`Replay a day`, `Live BTC`, and `Shared clip` only after a
+  recording link opens). Arrow/Home/End keys move and select; only the selected tab is
+  in the tab order.
+- Day cards are native radios in a horizontally scrolling strip. Each shows symbol, date,
+  title and the catalog's optional `summary` (≤160 characters, validated by `loadCatalog`).
+  Cards never show returns, and the chart reveals nothing ahead of the cursor before Start.
+- `createPlayback().setRange(from, to)` takes inclusive minutes, `0 ≤ from < to ≤ 389`.
+  Seek clamps into the range, the end is `to + 1`, and Start after the end restarts at
+  `from`. The default range is the whole day, so existing behaviour is unchanged.
+- `src/day-link.js` encodes `#day=<id>&sound=<historical preset>&speed=<SPEEDS>&from=&to=`.
+  Decoding requires exactly these five keys, a catalog ID and a valid range; failures show
+  `Unable to open link: …` and load the first day. `renderDayWav` renders the range offline
+  plus a 1.5 s tail and rejects more than 240 s of audio.
+
 ## Debug panel conventions
+
+The panel is hidden unless the page URL includes `?debug`. Diagnostic JSON blocks are
+written only while the panel is open; `window.marketMusic.inspect()` is always available.
 
 `createDebugPanel(features, root)` refreshes `createSoundScore` on preset changes and
 renders the chart's playback snapshots, with no timer, audio context, or firing history.

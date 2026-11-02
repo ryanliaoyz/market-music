@@ -10,9 +10,12 @@ Live playback uses the public resolved-event source in `src/live-events.js`, bas
 Eight bundled HF Clean sessions (seven SPY days and NVDA's DeepSeek day) play in
 the browser without a backend or credentials. A full-screen dark visual follows
 price and volatility, with one large Start/Stop button and four selectable sound
-cards. Historical playback also offers a day picker, minute seek and speed controls.
+cards. **Replay a day** and **Live BTC** tabs switch modes. Historical playback offers
+scrollable day cards (title and one line of context, never the day's outcome), minute
+seek, speed controls, and a clip range that can be shared as a link or saved as WAV.
 Missing minutes remain silent rests, never fabricated bars. Controls stack on phones,
-with large touch targets and visible keyboard focus. **Debug panel** opens diagnostics;
+with large touch targets and visible keyboard focus. Add `?debug` to the address to show
+the **Debug panel** diagnostics;
 **Sources & credits** opens data attribution.
 
 **Live crypto** streams BTC-USD directly from Coinbase's keyless public WebSocket.
@@ -54,7 +57,7 @@ python3 -m http.server
 Open `http://localhost:8000`. No build or npm install is needed. Use HTTP, not a
 local `index.html` file, because the app fetches data.
 
-Choose a day and press **Start** to enable audio. One exchange minute is one beat
+Choose a day card and press **Start** to enable audio. One exchange minute is one beat
 at base 120 BPM (1×); the default 1.625× plays 09:30–16:00 New York time in two
 minutes. Historical **Stop** pauses at the displayed minute; **Start** resumes it.
 Resume, seek, and speed changes restart the displayed minute.
@@ -82,12 +85,12 @@ All audio passes through a shared compressor, approximately 14 kHz lowpass and
 
 ### Live crypto
 
-Select **Live crypto · BTC-USD**, then **Start**. The connection opens only on Start;
+Select the **Live BTC** tab, then **Start**. The connection opens only on Start;
 audio starts after the first price and a five-second **Buffering** period. The
 stream remains connected throughout playback, including quiet intervals. **Stop**
 unsubscribes and clears the session, including rewind history. **Pause** also disconnects,
 but freezes the last three minutes of musical events for selection and export.
-Live has no speed control. Stop then Start retries after an error.
+Live has no speed control. After an error the main button reads **Retry**.
 
 Price changes move the melody by scale degrees in C natural minor. Changes are
 normalized against the recent 20-second return range, so small BTC moves are audible;
@@ -127,6 +130,14 @@ their prices are supplied by the link, not verified Coinbase history. Valid v1/v
 encoder output remains supported; crafted notes outside those mappings are rejected.
 Reloading loses an unshared live recording; save the WAV or link first.
 
+**Past days:** below the speed and session-time controls, **Clip start** and **Clip end**
+choose a range (the whole day by default). Playback, **Download WAV** and **Copy link** all
+use that range. The link (`#day=<session>&sound=<preset>&speed=<speed>&from=<minute>&to=<minute>`)
+carries only catalog choices, never prices or audio; opening it selects the day, sound and
+speed, then plays only that range. The address is cleared after the link is applied. WAV
+export renders the range at the chosen speed and is limited to four minutes of audio.
+On phones, sharing opens the system share sheet; elsewhere the link is copied.
+
 **Rewind:** press **Pause**, scrub the **Start** and **End** sliders, then **Preview**
 the selection, **Download WAV**, or **Copy link**. Only the last three minutes of
 played events are retained, in page memory. Pausing freezes that window; notes that
@@ -144,7 +155,7 @@ versions may reject links longer than two minutes. See the [event-score contract
 
 ### Diagnostics
 
-Expand **Debug panel** for the cursor's return, day σ, note/MIDI number, linear
+Open the page with `?debug` and expand **Debug panel** for the cursor's return, day σ, note/MIDI number, linear
 gain, drive, mapping rules, playback state, and waiting reasons. Paused seeks show
 labeled previews; rests clear bar values but retain day σ. Rules describe mappings,
 not a history of sounds fired. Values do not use an announcing live region.
