@@ -147,3 +147,9 @@ a { color: #9cdeca; text-underline-offset: 0.2em; }
   .event-flash { visibility: hidden; }
   *, *::before, *::after { transition: none !important; }
 }
+#rewind-controls:not([hidden]) {
+  display: grid;
+  gap: 0.65rem;
+  width: min(100%, 36rem);
+}
+#rewind-controls input { width: 100%; min-height: 44px; }

@@ -60,6 +60,7 @@
       <legend class="sr-only">Playback</legend>
       <div class="transport">
         <button id="play" type="button" aria-label="Start" aria-pressed="false">Start</button>
+        <button id="pause-live" type="button" hidden disabled>Pause</button>
         <p id="status" role="status">Loading…</p>
       </div>
       <fieldset id="preset"><legend>Choose your sound</legend><div id="preset-cards"></div></fieldset>
@@ -86,6 +87,15 @@
       </div>
     </fieldset>
     <section id="recording-controls" hidden aria-label="Recording">
+      <div id="rewind-controls" hidden>
+        <label for="rewind-start">Start · rewind (seconds)</label>
+        <input id="rewind-start" type="range" min="0" max="0" step="500" value="0">
+        <label for="rewind-end">End (seconds)</label>
+        <input id="rewind-end" type="range" min="0" max="0" step="1" value="0">
+        <output id="rewind-selection" aria-live="off"></output>
+        <button id="preview-rewind" type="button" disabled>Preview</button>
+        <button id="resume-live" type="button">Resume live</button>
+      </div>
       <button id="record" type="button" disabled>Record</button>
       <output id="recording-status" aria-live="off"></output>
       <button id="download-wav" type="button" disabled>Download WAV</button>
@@ -113,6 +123,7 @@
       <pre id="feed-debug" hidden></pre>
       <pre id="audio-debug"></pre>
       <pre id="recording-debug"></pre>
+      <pre id="rewind-debug"></pre>
       <pre id="lifecycle-debug"></pre>
     </details>
   </main>

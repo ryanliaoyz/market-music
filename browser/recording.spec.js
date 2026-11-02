@@ -68,7 +68,7 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   await expect(page.locator("#recording-error")).toBeEmpty();
   const linkInput = page.getByLabel("Recording link");
   await expect(linkInput).toBeVisible();
-  await expect(linkInput).toHaveValue(/^https?:\/\/.+#recording=v2\./);
+  await expect(linkInput).toHaveValue(/^https?:\/\/.+#recording=v3\./);
   const link = await linkInput.inputValue();
   expect(await page.evaluate(() => window.copiedLink)).toBe(link);
   await page.evaluate(link => { location.hash = new URL(link).hash; }, link);
@@ -76,8 +76,9 @@ test("record delayed live, export WAV, and replay a self-contained link", async 
   await page.getByLabel("Mode", { exact: true }).selectOption("historical");
   const fresh = await context.newPage();
   await fresh.goto(link);
-  expect((await inspect(fresh)).sharedClip.frames.some(frame => frame.presetId === "plucky-v2")).toBe(true);
-  expect((await inspect(fresh)).sharedClip.frames.some(frame => frame.mask === 15 && frame.accent > 0)).toBe(true);
+  expect((await inspect(fresh)).sharedClip.frames.some(frame => frame.presetId === "arpeggio-v3")).toBe(true);
+  expect((await inspect(fresh)).sharedClip.frames.some(frame => frame.events.some(event => event.part === "arp"))).toBe(true);
+  expect((await inspect(fresh)).sharedClip.frames.every(frame => frame.change === 0)).toBe(true);
   const downloaded = fresh.waitForEvent("download"); await fresh.getByRole("button", { name: "Download WAV" }).click();
   const download = await downloaded; expect(await download.failure()).toBeNull();
   const bytes = await readFile(await download.path());

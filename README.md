@@ -5,7 +5,7 @@ Price sets pitch and volatility adds distortion; historical volume sets loudness
 
 ## Overview
 
-Live playback uses the small open stand-in in `src/composer.js`. It preserves the public musical mapping and exposes composer state in Debug. The real M3 composer runs only locally and in tests in the private `market-music-core` repo; no private code or build artifact is deployed here. Server execution is planned for v4. See [the composer boundary](SPEC.md#composer-boundary).
+Live playback uses the public resolved-event source in `src/live-events.js`, based on the open musical mapping. Debug exposes its last score. The real M3 composer runs only locally and in tests in the private `market-music-core` repo; no private code or build artifact is deployed here. Server execution is planned for v4. See [the composer boundary](SPEC.md#composer-boundary).
 
 Eight bundled HF Clean sessions (seven SPY days and NVDA's DeepSeek day) play in
 the browser without a backend or credentials. A full-screen dark visual follows
@@ -66,9 +66,9 @@ Tap a card or use the arrow keys within the radio group. In historical mode, Cla
 keeps the original sound; Ambient uses a soft sine voice, Plucky a short triangle
 voice and major-pentatonic scale, and Bass-heavy a saw voice one octave lower.
 The others use minor pentatonic. Historical harmony retains the signed major-third/tritone
-mapping. Live uses the musical presets described below. Historical changes restart the displayed minute; live changes affect
-the next audible frame, including audio already queued ahead, without refilling
-the five-second buffer. The current frame and its release tail finish unchanged.
+mapping. Live uses the musical presets described below. Historical changes restart the displayed minute;
+Live v3 kit changes affect the next unscheduled beat without refilling the five-second
+buffer. Queued groups and release tails finish with their captured kit.
 Selection persists across days and modes for the page session.
 
 Tone.js 15.1.22 is served locally, with no build or runtime CDN dependency:
@@ -85,8 +85,9 @@ All audio passes through a shared compressor, approximately 14 kHz lowpass and
 Select **Live crypto · BTC-USD**, then **Start**. The connection opens only on Start;
 audio starts after the first price and a five-second **Buffering** period. The
 stream remains connected throughout playback, including quiet intervals. **Stop**
-is the only unsubscribe control and clears buffered audio/data. Stop before changing
-modes or restarting after an error; live mode has no pause, seek, or speed control.
+unsubscribes and clears the session, including rewind history. **Pause** also disconnects,
+but freezes the last three minutes of musical events for selection and export.
+Live has no speed control. Stop then Start retries after an error.
 
 Price changes move the melody by scale degrees in C natural minor. Changes are
 normalized against the recent 20-second return range, so small BTC moves are audible;
@@ -96,7 +97,7 @@ density and size-relative accents; ticker's 24-hour volume is never treated as s
 
 The four versioned live presets differ musically: **Classic** pulses with chord stabs,
 **Ambient** uses sparse sustained chords, **Plucky** plays short arpeggios, and
-**Bass-heavy** combines a low ostinato with offbeat chords. Base gain is 0.11 with
+**Bass-heavy** combines a low ostinato with quiet chords. Base gain is 0.11 with
 bounded trade accents; there is no VWAP drone or opening gong. Live uses the ticker's
 bid/ask mid and carries the last mid through quiet beats. Every received quote
 contributes to beat statistics; trades retain exchange-time sixteenth placement.
@@ -111,30 +112,35 @@ in a target browser/region; no Kraken adapter or automatic provider switch ships
 ### Recording and sharing
 
 During delayed live playback, press **Record**. Capture starts with the next
-scheduled audible frame, then retains timing, silent gaps, prices, and each frame's
-audible preset. **Stop recording** seals the clip while live playback continues.
-Clips stop automatically after 30 seconds; live Stop, a connection interruption,
+scheduled audible frame, then retains resolved notes/drums, timing, silent gaps and
+each frame's audible kit, without market data. **Stop recording** seals the clip while live playback continues.
+Clips stop automatically after two minutes; live Pause/Stop, a connection interruption,
 or audio suspension also seals the clip. An empty capture produces no download.
 
 **Download WAV** renders the clip locally with OfflineAudioContext as mono 44.1 kHz
 16-bit PCM, cut at the clip endpoint. **Copy link** displays a selectable URL and
 copies it when clipboard access is available. Its versioned hash contains the
 recording. Opening a link loads a paused replay; press **Start** to
-hear it. Deployed Live clips use `#recording=v2.` (30 seconds, 4 KiB) to retain resolved chords, rhythm and accents;
-existing `#recording=v1.` links keep their original sound. Captured presets are fixed
+hear it. Live clips use `#recording=v3.`; existing `#recording=v1.` and `v2.` links keep their original sound and limits. Captured presets are fixed
 during replay. Replay needs no exchange access. Shared links show **shared clip · unverified**:
 their prices are supplied by the link, not verified Coinbase history. Valid v1/v2
 encoder output remains supported; crafted notes outside those mappings are rejected.
 Reloading loses an unshared live recording; save the WAV or link first.
 
-`#recording=v3.` links carry resolved musical events, including drums, rather than
-re-running a composer. They support up to two minutes and 64 KiB, using the public
-versioned sound rack for both replay and WAV. Their chart shows unverified percent
-change from clip start, with no dollar prices. Capture begins at the next scheduled
-beat and excludes earlier notes/reverb already sounding; event equivalence preserves
-the score rather than promising identical noise/reverb samples. The deployed Live
-mode remains v2 until a resolved event source is connected; no private composer is
-loaded into the browser. See the [event-score contract](SPEC.md#event-score-replay-v3-gro-42).
+**Rewind:** press **Pause**, scrub the **Start** and **End** sliders, then **Preview**
+the selection, **Download WAV**, or **Copy link**. Only the last three minutes of
+played events are retained, in page memory. Pausing freezes that window; notes that
+started before the selection are excluded, and playback cuts at its end. **Resume live**
+stops preview and reconnects with a fresh five-second buffer, never replaying a backlog.
+Stop, switching modes or reloading clears rewind. Background interruptions require a tap.
+
+V3 links support 180 seconds and a 64 KiB hash cap. Dense selections may need shortening
+to share; WAV remains available and notes are never silently dropped. Live/rewind
+links contain no market data and show a time-only replay; older v3 links with relative
+changes retain their unverified percent chart. Preview, replay and WAV use the same
+public rack and event score, rather than re-running a composer. They exclude earlier
+effect tails and do not promise identical generated noise/reverb samples. Older app
+versions may reject links longer than two minutes. See the [event-score contract](SPEC.md#event-score-replay-v3-gro-42).
 
 ### Diagnostics
 
@@ -203,7 +209,10 @@ prices on the main chart.
   speakers/headphones; these require a real feed/browser check.
 - Record while switching presets, stop capture, download WAV, and open the copied
   link in a fresh tab. Compare replay/WAV sound and timing, including rests and the
-  endpoint. Check the 30-second automatic cap and recording interruption on Stop.
+  endpoint. Check the two-minute automatic cap and recording interruption on Pause/Stop.
+- Play Live for over three minutes, Pause, and select a short interval with keyboard
+  and touch. Compare preview, WAV and shared replay, then Resume live during preview.
+  Check immediate silence on interruption and fresh buffering without a catch-up burst.
 
 ## Test
 

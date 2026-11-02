@@ -11,6 +11,7 @@ import { encodeRecording, decodeRecording } from "./recording-codec.js";
 import { createRecordingPlayback } from "./recording-playback.js";
 import { renderWav } from "./wav.js";
 import { EVENT_PRESETS } from "./event-score.js";
+import { createLiveEventSource, LIVE_EVENT_PRESETS } from "./live-events.js";
 import { registerPwa } from "./pwa.js";
 
 const preset = document.getElementById("preset");
@@ -66,12 +67,12 @@ function renderLifecycle() {
   if (resumeNeeded) status.textContent = `Playback interrupted (${lifecycleReason}). Tap Start to continue.`;
 }
 function interrupt(why) {
+  stopPreview();
   const snapshot = playback?.inspect();
   if (!snapshot || !(snapshot.active || ["playing", "starting"].includes(snapshot.state))) return;
   resumeNeeded = true; lifecycleReason = why;
   feed?.stop();
-  if (snapshot.mode === "live") playback.stop();
-  else playback.pause();
+  playback.pause();
   renderLifecycle();
 }
 document.addEventListener("visibilitychange", () => {
@@ -87,12 +88,51 @@ let feed = null;
 let sessions = null;
 const recorder = createRecorder();
 let sharedClip = null, exporting = false, encodedSize = 0;
+let preview = null, previewGeneration = 0, selectedClip = null, rewindWasPaused = false;
+const pauseLive = document.getElementById("pause-live");
+const rewindStart = document.getElementById("rewind-start");
+const rewindEnd = document.getElementById("rewind-end");
+function stopPreview() {
+  previewGeneration++;
+  const previous = preview; preview = null;
+  previous?.dispose().catch(showError);
+  document.getElementById("preview-rewind").textContent = "Preview";
+}
+function selectRewind() {
+  stopPreview();
+  document.getElementById("recording-link").hidden = true;
+  selectedClip = Number(rewindEnd.value) > Number(rewindStart.value)
+    ? playback.rewind.clip(Number(rewindStart.value), Number(rewindEnd.value)) : null;
+  recordingError.textContent = "";
+  renderRecording();
+}
+function renderRewind(snapshot) {
+  const paused = snapshot?.mode === "live" && snapshot.state === "paused";
+  pauseLive.hidden = snapshot?.mode !== "live";
+  pauseLive.disabled = snapshot?.state !== "playing";
+  document.getElementById("rewind-controls").hidden = !paused;
+  if (paused && !rewindWasPaused) {
+    const range = snapshot.rewind;
+    for (const input of [rewindStart, rewindEnd]) { input.min = range.startMs; input.max = range.endMs; }
+    rewindStart.value = range.startMs; rewindEnd.value = range.endMs;
+    selectedClip = range.durationMs > 0 ? playback.rewind.clip(range.startMs, range.endMs) : null;
+  }
+  rewindWasPaused = paused;
+  rewindStart.setAttribute("aria-valuetext", `${(Number(rewindStart.value) / 1000).toFixed(1)} seconds`);
+  rewindEnd.setAttribute("aria-valuetext", `${(Number(rewindEnd.value) / 1000).toFixed(1)} seconds`);
+  document.getElementById("rewind-selection").textContent = `${(Number(rewindStart.value) / 1000).toFixed(1)}–${(Number(rewindEnd.value) / 1000).toFixed(1)} s · ${((selectedClip?.durationMs ?? 0) / 1000).toFixed(1)} s selected`;
+  document.getElementById("preview-rewind").disabled = !selectedClip;
+  document.getElementById("rewind-debug").textContent = JSON.stringify({ ...snapshot?.rewind,
+    selection: selectedClip ? { startMs: Number(rewindStart.value), endMs: Number(rewindEnd.value) } : null,
+    preview: preview?.inspect() ?? null, encodedSize }, null, 2);
+}
 const record = document.getElementById("record");
 const download = document.getElementById("download-wav");
 const share = document.getElementById("share-recording");
 const recordingError = document.getElementById("recording-error");
-const currentClip = () => mode.value === "recording" ? sharedClip : recorder.clip;
+const currentClip = () => mode.value === "recording" ? sharedClip : playback?.inspect().state === "paused" && mode.value === "live" ? selectedClip : recorder.clip;
 function renderRecording(snapshot = playback?.inspect()) {
+  renderRewind(snapshot);
   const time = snapshot?.audio?.currentTime ?? 0;
   recorder.update(time);
   const info = recorder.inspect(time);
@@ -133,14 +173,14 @@ function render(snapshot) {
   document.getElementById("audio-debug").textContent = JSON.stringify({ volume: listeningVolume(), audio: snapshot.audio, error }, null, 2);
   const mapping = debug?.inspect();
   scene.style.setProperty("--note-position", String((mapping?.note ?? 60) - 60));
-  const active = snapshot.mode === "live" ? snapshot.active : ["playing", "starting"].includes(snapshot.state);
+  const active = snapshot.mode === "live" ? snapshot.active || snapshot.state === "paused" && !resumeNeeded : ["playing", "starting"].includes(snapshot.state);
   play.textContent = active ? "Stop" : "Start";
   play.setAttribute("aria-label", play.textContent);
   play.setAttribute("aria-pressed", String(active));
   document.getElementById("preset-debug").textContent = `Selected: ${snapshot.presetId}; ${mapping?.presetId ?? "no audible preset"} · scale ${mapping?.scale?.join(", ") ?? "n/a"} · root ${mapping?.root ?? "n/a"} · ${mapping?.oscillator ?? "n/a"} · cutoff ${mapping?.cutoff ?? "n/a"} Hz`;
   if (snapshot.mode === "recording") {
     for (const radio of preset.querySelectorAll("input")) radio.checked = radio.value === snapshot.presetId;
-    if (!resumeNeeded) status.textContent = `Shared recording · ${snapshot.state}`;
+    if (!resumeNeeded) status.textContent = `Shared recording · ${snapshot.state}${snapshot.eventOnly ? ` · ${(snapshot.elapsedMs / 1000).toFixed(1)} / ${snapshot.durationMs / 1000} s` : ""}`;
     return;
   }
   if (snapshot.mode === "live") {
@@ -148,7 +188,7 @@ function render(snapshot) {
     const messages = { stopped: "Live crypto ready. Press Start to subscribe.", starting: "Starting audio…",
       waiting: "Waiting for the first BTC-USD price…", buffering: "Buffering · 5 seconds…",
       playing: "Playing · 5 s delayed · BTC-USD · Coinbase", reconnecting: "Connection lost. Reconnecting to Coinbase…",
-      error: "Live unavailable. Press Stop, then Start to retry." };
+      paused: "Paused · select a rewind interval or Resume live.", error: "Live unavailable. Press Stop, then Start to retry." };
     if (!resumeNeeded) status.textContent = messages[snapshot.state] ?? snapshot.state;
     if (feed) feedDebug.textContent = JSON.stringify({ ...feed.inspect(), retainedFrames: snapshot.frames.length,
       policy: snapshot.policy, references: snapshot.latest?.references ?? null,
@@ -169,6 +209,7 @@ window.marketMusic = {
   inspect: () => ({ mode: mode.value, feed: feed?.inspect() ?? null, selectedSession: day.value, loading, error, playback: playback?.inspect() ?? null,
     lifecycle: { visibility: document.visibilityState, resumeNeeded, reason: lifecycleReason, pwa },
     visuals: visuals?.inspect() ?? null, debug: debug?.inspect() ?? null,
+    rewind: { ...playback?.rewind?.inspect(), selection: selectedClip, preview: preview?.inspect() ?? null },
     recording: { ...recorder.inspect(playback?.inspect().audio?.currentTime), exporting, encodedSize }, sharedClip }),
 };
 
@@ -221,6 +262,7 @@ function configureMode(live, replay) {
 }
 
 async function selectMode() {
+  stopPreview(); selectedClip = null; rewindWasPaused = false;
   resumeNeeded = false; lifecycleReason = "mode change";
   const request = ++selection;
   feed?.stop(); feed = null;
@@ -232,7 +274,7 @@ async function selectMode() {
   const replay = mode.value === "recording";
   const selectedIndex = [...preset.querySelectorAll("input")].findIndex(input => input.checked);
   const musicalReplay = replay && sharedClip.version !== 3 && sharedClip.frames[0].presetId.endsWith("-v2");
-  renderPresets(replay && sharedClip.version === 3 ? EVENT_PRESETS : live || musicalReplay ? LIVE_PRESETS : PRESETS, selectedIndex);
+  renderPresets(replay && sharedClip.version === 3 ? EVENT_PRESETS : live ? LIVE_EVENT_PRESETS : musicalReplay ? LIVE_PRESETS : PRESETS, selectedIndex);
   configureMode(live, replay);
   preset.disabled = replay;
   await previous?.dispose();
@@ -241,8 +283,12 @@ async function selectMode() {
   if (replay) {
     visuals = createLiveVisuals(chart); debug = createLiveDebugPanel(debugPanel);
     playback = createRecordingPlayback(sharedClip, { volume: listeningVolume(), onChange: snapshot => { if (request === selection) render(snapshot); } });
-    chart.querySelector("figcaption").textContent = sharedClip.version === 3 ? "Shared BTC-USD · relative time · % from clip start" : "Recorded BTC-USD · relative time · USD";
-    document.getElementById("chart-title").textContent = sharedClip.version === 3 ? "Shared clip · relative change" : "Recorded BTC-USD prices";
+    chart.querySelector("figcaption").textContent = playback.inspect().eventOnly ? "Shared musical events · relative time · no market data" : sharedClip.version === 3 ? "Shared BTC-USD · relative time · % from clip start" : "Recorded BTC-USD · relative time · USD";
+    document.getElementById("chart-title").textContent = playback.inspect().eventOnly ? "Shared musical events · relative time" : sharedClip.version === 3 ? "Shared clip · relative change" : "Recorded BTC-USD prices";
+    if (playback.inspect().eventOnly) {
+      const labels = chart.querySelectorAll(".chart-labels text");
+      [labels[2].textContent, labels[3].textContent, labels[4].textContent] = ["0 s", `${sharedClip.durationMs / 2000} s`, `${sharedClip.durationMs / 1000} s`];
+    }
     controls.disabled = false; chart.hidden = debugPanel.hidden = false; loading = false;
     render(playback.inspect()); return;
   }
@@ -253,7 +299,7 @@ async function selectMode() {
   }
   visuals = createLiveVisuals(chart);
   debug = createLiveDebugPanel(debugPanel);
-  playback = createLivePlayback({ volume: listeningVolume(), presetId: selectedPreset(), onSchedule: recorder.schedule, onCancel: recorder.cancel,
+  playback = createLivePlayback({ volume: listeningVolume(), presetId: selectedPreset(), eventSource: createLiveEventSource(), onSchedule: recorder.schedule, onCancel: recorder.cancel,
     onBoundary: recorder.boundary, onChange: snapshot => { if (request === selection) render(snapshot); } });
   feed = createLiveFeed({
     onTick: tick => { if (request === selection) playback.accept(tick); },
@@ -272,15 +318,17 @@ mode.addEventListener("change", () => { selectMode().catch(showError); });
 
 play.addEventListener("click", async () => {
   if (document.hidden) return;
+  const resumingInterrupted = resumeNeeded;
   resumeNeeded = false; lifecycleReason = "user gesture";
   const current = playback;
   const request = selection;
   try {
     if (mode.value === "live") {
-      if (current.inspect().active) { feed.stop(); current.stop(); }
+      stopPreview(); selectedClip = null;
+      if (current.inspect().active || current.inspect().state === "paused" && !resumingInterrupted) { feed.stop(); current.stop(); }
       else {
         error = null;
-        const starting = current.start();
+        const starting = current.start({ retainHistory: resumingInterrupted });
         feed.start();
         await starting;
       }
@@ -297,10 +345,30 @@ play.addEventListener("click", async () => {
   }
 });
 seek.addEventListener("input", () => playback.seek(Number(seek.value)));
-volume.addEventListener("input", () => playback.setVolume(listeningVolume()));
+volume.addEventListener("input", () => { playback.setVolume(listeningVolume()); preview?.setVolume(listeningVolume()); });
 speed.addEventListener("change", () => playback.setSpeed(Number(speed.value)));
 preset.addEventListener("change", () => {
   try { playback.setPreset(selectedPreset()); } catch (cause) { showError(cause); }
+});
+pauseLive.addEventListener("click", () => { feed.stop(); playback.pause(); });
+rewindStart.addEventListener("input", selectRewind);
+rewindEnd.addEventListener("input", selectRewind);
+document.getElementById("preview-rewind").addEventListener("click", async () => {
+  if (preview) { stopPreview(); renderRecording(); return; }
+  const request = ++previewGeneration;
+  const player = createRecordingPlayback(selectedClip, { volume: listeningVolume(), onChange: snapshot => {
+    if (request !== previewGeneration) return;
+    document.getElementById("preview-rewind").textContent = snapshot.state === "playing" || snapshot.state === "starting" ? "Stop preview" : "Preview";
+    renderRecording();
+    if (snapshot.reason === "replay-ended") stopPreview();
+  } });
+  preview = player;
+  try { await player.play(); } catch (cause) { if (request === previewGeneration) { stopPreview(); showError(cause); } }
+});
+document.getElementById("resume-live").addEventListener("click", async () => {
+  stopPreview(); selectedClip = null; resumeNeeded = false; lifecycleReason = "resume-live";
+  try { const starting = playback.start({ retainHistory: true }); feed.start(); await starting; }
+  catch (cause) { showError(cause); }
 });
 
 async function initialize() {
@@ -350,7 +418,7 @@ share.addEventListener("click", async () => {
       catch { recordingError.textContent = "Select and copy the recording link below."; }
     }
     renderRecording();
-  } catch (cause) { recordingError.textContent = cause.message; }
+  } catch (cause) { recordingError.textContent = cause.message.includes("64 KiB") ? "Selection exceeds 64 KiB. Shorten it to copy a link; WAV is still available." : cause.message; }
 });
 async function loadRecordingHash() {
   if (!location.hash.startsWith("#recording=")) return;

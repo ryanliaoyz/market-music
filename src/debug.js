@@ -15,20 +15,22 @@ export function createLiveDebugPanel(root) {
     render(snapshot) {
       const current = snapshot.state === "playing" ? snapshot.audible : snapshot.latest;
       const mapping = current?.mapping;
+      const event = current?.events?.find(event => event.note !== undefined);
+      const note = mapping?.note ?? event?.note ?? null;
       write("state", `${snapshot.state}${snapshot.state === "paused" ? " · mapping preview" : ""}`);
       write("bar", current?.exchangeTimeMs != null ? `${new Date(current.exchangeTimeMs).toISOString().slice(11, 23)} UTC · frame ${current.id}` : "Waiting for a fresh price");
       write("return", percent(current?.return ?? null));
       write("sigma", percent(current?.sigma ?? null));
-      write("note", mapping ? `${NOTES[mapping.note % 12]}${Math.floor(mapping.note / 12) - 1} (MIDI ${mapping.note})` : "n/a");
-      write("gain", decimal(mapping?.gain ?? null));
+      write("note", note !== null ? `${NOTES[note % 12]}${Math.floor(note / 12) - 1} (MIDI ${note})` : "n/a");
+      write("gain", decimal(mapping?.gain ?? event?.velocity ?? null));
       write("drive", decimal(mapping?.drive ?? null));
       const music = current?.degree === undefined ? "" : ` · degree ${current.degree}; Δ/range ${current.normalizedChange.toFixed(2)}; trend ${current.trend}; trades/s ${current.tradeRate.toFixed(1)}`;
       const signal = current?.controls ? ` · controls ${JSON.stringify(current.controls)} · mid ${current.mid}; spread ${current.spread}; quote age ${current.quoteAgeMs} ms` : "";
-      write("rules", (mapping?.rules.join(", ") || "none") + music + signal);
+      write("rules", (current?.events ? `${current.presetId}: ${current.events.length} resolved events` : mapping?.rules.join(", ") || "none") + music + signal);
       write("waiting", snapshot.waiting ?? "none");
       write("reason", snapshot.reason);
-      frame = { frameId: current?.id ?? null, note: mapping?.note ?? null, gain: mapping?.gain ?? null,
-        presetId: mapping?.presetId ?? null, selectedPresetId: snapshot.presetId,
+      frame = { frameId: current?.id ?? null, note, gain: mapping?.gain ?? event?.velocity ?? null,
+        presetId: mapping?.presetId ?? current?.presetId ?? null, selectedPresetId: snapshot.presetId,
         scale: mapping?.scale ?? null, root: mapping?.root ?? null, oscillator: mapping?.oscillator ?? null,
         cutoff: mapping?.cutoff ?? null, drive: mapping?.drive ?? null,
         references: current?.references ?? null, policy: snapshot.policy,

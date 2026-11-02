@@ -1,13 +1,15 @@
 import { MAX_DURATION_MS, MAX_FRAMES } from "./recording-codec.js";
-import { RENDERER, V3_DURATION_MS, V3_FRAMES, normalizeEvents } from "./event-score.js";
+import { RENDERER, normalizeEvents } from "./event-score.js";
 
 export function createRecorder() {
   const pending = new Map();
   let state = "idle", reason = "created", start = null, startOffsetMs = null, armedAt = 0, clip = null;
   let captured = new Map();
   let eventMode = false;
-  const limit = () => eventMode ? V3_DURATION_MS : MAX_DURATION_MS;
+  const limit = () => eventMode ? 120000 : MAX_DURATION_MS;
   function schedule(frame) {
+    if (Array.isArray(frame.events)) frame = { scheduleId: frame.scheduleId, when: frame.when,
+      playbackOffsetMs: frame.playbackOffsetMs, presetId: frame.presetId, events: structuredClone(frame.events) };
     pending.set(frame.scheduleId, frame);
     if (!["armed", "recording"].includes(state) || frame.when < armedAt) return;
     start ??= frame.when;
@@ -22,10 +24,10 @@ export function createRecorder() {
     if (!["armed", "recording"].includes(state)) return;
     const durationMs = start === null ? 0 : Math.min(limit(), Math.max(0, Math.round((time - start) * 1000)));
     const heard = [...captured.values()].sort((a, b) => a.playbackOffsetMs - b.playbackOffsetMs)
-      .filter(frame => frame.when < time && Math.round(frame.playbackOffsetMs - startOffsetMs) < durationMs).slice(0, eventMode ? V3_FRAMES : MAX_FRAMES);
+      .filter(frame => frame.when < time && Math.round(frame.playbackOffsetMs - startOffsetMs) < durationMs).slice(0, eventMode ? 240 : MAX_FRAMES);
     const frames = heard.map(frame => eventMode ? {
       offsetMs: Math.round(frame.playbackOffsetMs - startOffsetMs), presetId: frame.presetId,
-      change: Math.max(-32768, Math.min(32767, Math.round((frame.price / heard[0].price - 1) * 100000))),
+      change: 0,
       events: normalizeEvents(frame.events).filter(event => Math.round(frame.playbackOffsetMs - startOffsetMs) + event.offset * 1000 < durationMs),
     } : ({ offsetMs: Math.round(frame.playbackOffsetMs - startOffsetMs), price: frame.price,
         presetId: frame.presetId, note: frame.mapping.note, harmony: frame.mapping.harmony,
