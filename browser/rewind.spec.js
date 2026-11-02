@@ -71,9 +71,9 @@ test("pause selects rendered history, previews, exports and shares offline; resu
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   expect((await inspect(page)).rewind.durationMs).toBe(0);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
-  await context.setOffline(true);
   const replay = await context.newPage();
   await replay.goto(link);
+  await context.setOffline(true);
   await expect(replay.locator("figcaption")).toContainText("no market data");
   await replay.locator("#play").click();
   await expect.poll(async () => (await inspect(replay)).playback.audio?.rack?.last?.renderer).toBe("rack-v3");
