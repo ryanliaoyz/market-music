@@ -97,10 +97,10 @@ test("real Web Audio and the debug/chart mapping follow the delayed frame", asyn
     { intervals: [25], timeout: 8000 }).toBe(101);
   const state = await inspect(page);
   expect(state.playback.audio.contextState).toBe("running");
-  expect(state.playback.audio.lastScheduled.gain).toBe(0.11);
+  expect(state.playback.audio.lastScheduled.renderer).toBe("rack-v3");
   expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(5000);
   expect(state.debug.frameId).toBe(state.visuals.frameId);
-  expect(state.debug.note).toBe(state.playback.audio.lastScheduled.note);
+  expect(state.debug.note).toBe(state.playback.audible.events.find(event => event.note !== undefined).note);
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   expect((await inspect(page)).playback.audio.activeVoices).toBe(0);
   expect(mock.errors).toEqual([]);
@@ -117,10 +117,10 @@ test("live Tone selection changes the next audible frame while buffered prices r
   let state;
   await expect.poll(async () => {
     state = await inspect(page);
-    return state.playback.audible?.mapping.presetId;
+    return state.playback.audible?.presetId;
   },
-    { intervals: [25], timeout: 8000 }).toBe("bass-heavy-v2");
-  expect(state.debug.presetId).toBe("bass-heavy-v2");
+    { intervals: [25], timeout: 8000 }).toBe("bass-heavy-v3");
+  expect(state.debug.presetId).toBe("bass-heavy-v3");
   expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(5000);
   expect(mock.sockets).toHaveLength(1);
   await page.getByRole("button", { name: "Stop", exact: true }).click();

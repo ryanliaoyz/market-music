@@ -78,7 +78,7 @@ test("preset cards retain selection across days and modes with Debug closed", as
   await expect.poll(() => page.evaluate(() => window.marketMusic.inspect().playback.presetId)).toBe("plucky-v1");
   await page.getByLabel("Mode", { exact: true }).selectOption("live");
   await expect(page.getByRole("radio", { name: "Plucky", exact: true })).toBeChecked();
-  await expect.poll(() => page.evaluate(() => window.marketMusic.inspect().playback.presetId)).toBe("plucky-v2");
+  await expect.poll(() => page.evaluate(() => window.marketMusic.inspect().playback.presetId)).toBe("arpeggio-v3");
   await expect(page.getByRole("slider", { name: "Session time (New York)" })).toBeHidden();
   await expect(page.getByRole("button", { name: "Record", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Download WAV" })).toBeVisible();

@@ -1,4 +1,4 @@
-import { RENDERER, EVENT_KITS, EVENT_PARTS, V3_HASH_LENGTH, validateEventScore } from "./event-score.js";
+import { RENDERER, EVENT_KITS, EVENT_PARTS, V3_FRAMES, V3_HASH_LENGTH, validateEventScore } from "./event-score.js";
 
 const PREFIX = "#recording=v3.";
 export function encodeV3(clip) {
@@ -28,7 +28,7 @@ export function decodeV3(hash) {
   if (hash.length > V3_HASH_LENGTH || !/^[A-Za-z0-9_-]+$/.test(text) || text.length % 4 === 1) throw new Error("Invalid v3 encoding");
   const bytes = Uint8Array.from(atob(text.replaceAll("-", "+").replaceAll("_", "/")), char => char.charCodeAt(0));
   const view = new DataView(bytes.buffer);
-  if (bytes.length < 8 || bytes[0] !== 1 || bytes[1] !== 0 || view.getUint16(6) > 240) throw new Error("Invalid v3 header");
+  if (bytes.length < 8 || bytes[0] !== 1 || bytes[1] !== 0 || view.getUint16(6) > V3_FRAMES) throw new Error("Invalid v3 header");
   let at = 8;
   const frames = [];
   for (let n = 0; n < view.getUint16(6); n++) {

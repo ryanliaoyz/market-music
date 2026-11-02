@@ -4,6 +4,7 @@ import { createLiveFeatures, FRAME_MS, WINDOW_FRAMES, LIVE_POLICY } from "./live
 import { createComposer } from "./composer.js";
 import { createBeatAggregator } from "./live-aggregate.js";
 import { EVENT_KITS, RENDERER, normalizeEvents, validateEventScore } from "./event-score.js";
+import { createRewindBuffer } from "./rewind-buffer.js";
 
 export const DELAY_MS = 5000;
 const RETAINED_FRAMES = WINDOW_FRAMES + DELAY_MS / FRAME_MS + 2;
@@ -26,6 +27,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
   let audioError = null;
   let aggregate = null;
   let composer = eventSource ?? createComposer({ preset: presetId });
+  const rewind = createRewindBuffer();
 
   function inspect() {
     const cursor = origin === null ? null : now() - origin - DELAY_MS;
@@ -39,12 +41,13 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       latest: structuredClone(visible.at(-1) ?? null), audible: structuredClone(audible),
       waiting: !active || audioError ? null : !audioReady ? "audio-context-resume" : origin === null ? "first-price" : cursor < 0 ? "five-second-buffer" : null,
       signal: features.inspectSignal(), aggregate: aggregate?.inspect() ?? null, composer: composer.inspect(),
-      audio: engine?.inspect() ?? null };
+       rewind: rewind.inspect(), audio: engine?.inspect() ?? null };
   }
   function notify() { onChange(inspect()); }
   function clearSegment(why) {
+    rewind.boundary(engine?.inspect().currentTime ?? 0, why);
     onBoundary(engine?.inspect().currentTime ?? 0, why);
-    for (const item of scheduled) if (item.when > engine.inspect().currentTime) onCancel(item.frame.scheduleId);
+    for (const item of scheduled) if (item.when > engine.inspect().currentTime) { onCancel(item.frame.scheduleId); rewind.cancel(item.frame.scheduleId); }
     engine?.silence(); features = createLiveFeatures(); composer.reset();
     origin = null; frames = []; built = -1; nextAudio = 0;
      aggregate = null;
@@ -72,6 +75,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     for (let slot = first; slot <= sourceSlot; slot++) build(slot);
     const cursor = time - origin - DELAY_MS;
     if (!audioReady || engine.inspect().contextState !== "running") {
+      rewind.boundary(engine.inspect().currentTime, "audio-suspended");
       onBoundary(engine.inspect().currentTime, "audio-suspended");
       for (const item of scheduled) onCancel(item.frame.scheduleId);
       engine?.silence(); audible = null; scheduled = [];
@@ -79,6 +83,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       notify(); return;
     }
     const audioNow = engine.inspect().currentTime;
+    rewind.update(audioNow);
     for (const item of scheduled) if (audioNow >= item.when) audible = item.frame;
     scheduled = scheduled.filter(item => audioNow < item.when);
     if (audible && audioNow >= audible.until) audible = null;
@@ -96,7 +101,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
         events = normalizeEvents(eventSource.advance({ beat: frame.slot, controls: frame.controls, frame, preset: presetId }).events);
         validateEventScore({ version: 3, renderer: RENDERER, durationMs: 500,
           frames: [{ offsetMs: 0, presetId, change: 0, events }] });
-        engine.playEvents(events, { when, presetId, skipIfLate: true });
+        events = engine.playEvents(events, { when, presetId, skipIfLate: true }).events;
       } else {
         const resolved = getPreset(presetId).rhythm ? composer.advance({ beat: frame.slot, controls: frame.controls, frame }).mapping : mapSoundFrame({ index: frame.id, minute: frame.slot, close: frame.price,
           return: frame.return, sigma: frame.sigma, event: frame.event, rollingVolatility: frame.rollingVolatility,
@@ -109,6 +114,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
           when, duration: 0.47, until: when + 0.47 };
         scheduled.push({ when, frame: captured });
         onSchedule(structuredClone(captured));
+        if (events) rewind.schedule(captured);
         if (audioNow >= when) audible = captured;
       }
     }
@@ -119,6 +125,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
     notify();
   }
   return {
+    rewind,
     setVolume(value) { volume = value; engine?.setVolume(value); notify(); },
     acceptTrade(trade) {
       if (!active || disposed || origin === null || connectionId !== trade.connectionId) return;
@@ -175,12 +182,13 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       // Healthy heartbeats and a quiet ticker leave the delayed timeline and socket running.
       notify();
     },
-    async start() {
+    async start({ retainHistory = false } = {}) {
       if (disposed) throw new Error("Live playback is disposed");
       if (active) return;
       const request = ++generation;
       active = true; audioReady = false; audioError = null; state = "starting"; sessionStart = now();
       connectionId = null; newestReceived = null; segmentId = 0; clearSegment("start");
+      if (!retainHistory) rewind.clear();
       engine ??= createSoundEngine({ bars: [], openingGapReturn: null }, { context, tone, volume, eventMode: Boolean(eventSource) });
       timer = every(advance, 25); notify();
       try { await engine.resume(); }
@@ -193,9 +201,14 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       if (state !== "error" && state !== "reconnecting") state = origin === null ? "waiting" : "buffering";
       notify();
     },
-    stop() {
+    stop({ retainHistory = false } = {}) {
       generation++; active = false; audioReady = false; audioError = null; cancel(timer); timer = null;
-      clearSegment("stop"); engine?.stop(); newestReceived = null; state = "stopped"; notify();
+      clearSegment("stop"); engine?.stop(); newestReceived = null; state = "stopped";
+      if (!retainHistory) rewind.clear();
+      notify();
+    },
+    pause() {
+      this.stop({ retainHistory: true }); state = "paused"; reason = "rewind-pause"; notify();
     },
     async dispose() {
       if (disposed) return;

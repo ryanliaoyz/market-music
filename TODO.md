@@ -82,4 +82,11 @@
 - [x] Shared v3 replay and WAV schedule the same score offline without a composer; v1/v2 links and deployed Live remain compatible.
 - [x] Golden, malformed-input, scheduling and real-browser offline/audio checks pass with the documented public/private boundary.
 
+### M5: Rewind buffer (GRO-54)
+
+- [x] Live retains at most three minutes of rendered notes/drums in browser memory, without market data or private-core integration.
+- [x] Pause freezes history for keyboard/touch selection and preview; Resume live reconnects with fresh buffering and no backlog.
+- [x] Selected clips export WAV or v3 links up to 180 seconds, with an actionable 64 KiB error and compatible older replay links.
+- [x] Unit/browser acceptance checks pass; Debug exposes retained range, selection, preview and waiting reasons.
+
 ## Later

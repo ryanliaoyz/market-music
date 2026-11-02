@@ -25,9 +25,9 @@ documentation-only changes do not require a cache bump.
 
 Results have `version`, `preset`, `beat` and `events`. Event fields are `part`, optional MIDI `note`, `offset` and `duration` in seconds relative to the beat start, and linear `velocity`. `reset()` restores the initial seed; `inspect()` returns an isolated diagnostic snapshot. Implementations use distinct version IDs, and determinism is scoped to a version, seed, kit and timed input sequence.
 
-The public `open-v1` stand-in returns an empty event list plus a compatibility `mapping` derived from the existing public `musicalMapping(frame, preset)`. The deployed Live mode consumes that mapping and records v2. `frame` is the legacy mapping input, not an additional private-composer dependency. The private composer is local/test-only until a v4 server exists; there is no private release workflow or injection step.
+The public `open-v1` stand-in returns an empty event list plus a compatibility `mapping` derived from the existing public `musicalMapping(frame, preset)`. This remains the legacy mapping interface. Deployed Live uses `live-events.js` to resolve that public musical mapping into v3 notes and explicit drums, rendered by the same rack as replay/export. `frame` is the legacy mapping input, not an additional private-composer dependency. The private composer is local/test-only until a v4 server exists; there is no private release workflow or injection step.
 
-`createLivePlayback` also accepts an explicit resolved `eventSource` with `advance`, `reset` and `inspect`, and a v3 kit ID. Its scheduling-time `advance({beat, controls, frame, preset})` returns `{events}`. It must tolerate skipped or replaced beats; this is an already-resolved source seam, not a direct adapter for the private consecutive-beat composer. Source ownership of lookahead/composition remains outside the browser player. No event source is installed in deployed Live mode. The player normalizes source timing/velocity to the public grid, validates it, schedules it and sends the same events to the recorder. Public fixtures exercise this path without a private checkout.
+`createLivePlayback` accepts a resolved `eventSource` with `advance`, `reset` and `inspect`, and a v3 kit ID. Its scheduling-time `advance({beat, controls, frame, preset})` returns `{events}`. It must tolerate skipped or replaced beats; this is an already-resolved source seam, not a direct adapter for the private consecutive-beat composer. Source ownership of lookahead/composition remains outside the browser player. The player normalizes source timing/velocity to the public grid, validates it, schedules it and sends only accepted, non-late events to capture. Public fixtures exercise this path without a private checkout.
 
 ## Recording contracts
 
@@ -39,6 +39,10 @@ deadlines to audio-clock time again. Legacy capture ends at 30 seconds (at most 
 manual stop, or the live segment/audio interruption boundary. Endpoints exclude
 unheard future frames; empty intervals do not create a clip. Completed clips stay
 in memory until replaced by another recording or the page is unloaded.
+
+Manual v3 recording retains its 120-second/240-group cap independently of the
+180-second replay format limit. Its pending/captured records contain only score
+fields and scheduling identifiers, and encode `change: 0` without retaining prices.
 
 `recording-codec.js` owns the `#recording=v1.` contract: unpadded base64url of a
 big-endian binary payload, at most 4,096 ASCII characters including the prefix.
@@ -69,8 +73,10 @@ not controls, seed, composer state or lookahead. Composition never runs during r
 or WAV export. Renderer/kit IDs freeze public sound definitions independently of
 composer versions. The private composer implementation never enters the public shell.
 
-Limits are 120,000 ms, 240 beat groups, 32 events per group and 65,536 ASCII hash
+Limits are 180,000 ms, 360 beat groups, 32 events per group and 65,536 ASCII hash
 characters including the prefix. V1/v2 retain their original limits and bytes.
+Dense three-minute scores can exceed the hash cap: sharing reports an actionable
+shorten-selection error without altering the score or preventing WAV export.
 The unpadded base64url payload uses big-endian integers:
 
 | Record | Fields |
@@ -88,9 +94,34 @@ MIDI 48–84, except bass 22–54 and arp 48–96. These are public player limit
 private composition rules. Invalid counts, IDs, fields, truncated/trailing bytes
 and excessive overlapping melodic voices are rejected before audio allocation.
 
-The chart stores only change from the first captured price, rounded to 0.1 bp and
+Older v3 chart data stores only change from the first captured price, rounded to 0.1 bp and
 saturated to int16 (−32.768% to +32.767%). It displays percent from clip start,
 never USD, and remains labeled unverified. Saturation affects only the chart.
+New Live/rewind scores set every change field to zero and retain no market data.
+All-zero scores show time-only replay rather than a synthetic market chart.
+
+### Rewind buffer (GRO-54)
+
+`rewind-buffer.js` retains resolved renderer events, kit IDs and relative playback
+timing only, in browser memory. The player passes schedule/cancel/boundary callbacks
+and advances the heard endpoint from the audio clock. Pending attacks do not count
+as heard; pause/interruption removes future attacks and bounds gates at that segment's
+endpoint. Preview never enters this buffer. No market fields, persistence, upload or
+private-core integration is involved.
+
+While playing, evict groups before `ceil((playedThrough − 180000) / 500) * 500`,
+clamped to zero: at most three minutes, 360 heard groups plus scheduler lookahead,
+and 32 events per group. Silent groups and gaps remain timed rests. Pause freezes
+the range and eviction, silences/cancels audio, disconnects the feed and seals recording.
+Start selections use the 500 ms grid; end selections use integer milliseconds, including
+the partial paused beat. Earlier attacks/tails are excluded and exports cut at the end.
+
+Resume stops preview, invalidates pending preview unlocks and reconnects/refills the
+five-second Live delay. History appends on the next beat grid, excluding paused/refill
+time; a partial last beat can leave less than 500 ms of padding. Stop, mode change and
+reload clear history. Backgrounding stops preview and freezes Live; returning needs
+a gesture. Debug/`marketMusic.inspect().rewind` exposes range, counts, selection,
+preview, waiting and transition reasons; encoded size is in recording diagnostics.
 
 Event capture starts at the next scheduled beat, including queued work. Event-source
 kit changes affect the next unscheduled group; already scheduled groups keep their
@@ -182,9 +213,10 @@ retain their separate contracts below.
   opens `wss://advanced-trade-ws.coinbase.com`, subscribing separately to public
   `ticker` and `market_trades` for `BTC-USD`, plus `heartbeats`, with no JWT. Stop sends unsubscribe
   messages when open, closes the socket, cancels retries/audio, and clears the
-  session. Mode selection is disabled until Stop. There is no live Pause.
+  session. Mode selection is disabled while active. Pause disconnects and preserves
+  rewind history; Resume live refills from fresh quotes.
 - States are stopped, starting, waiting for first price, buffering, playing,
-  reconnecting, and error. Subscription errors leave Stop available and do not
+  paused, reconnecting, and error. Subscription errors leave Stop available and do not
   close a healthy socket; Stop then Start retries. Audio failures propagate and
   remain actionable while Stop retains subscription ownership.
 - Connection/subscription timeout is 10 seconds; missing heartbeats for five
@@ -251,14 +283,16 @@ retain their separate contracts below.
   chord voices. Preset gates and texture affect timing as well as timbre.
 - Base live gain is 0.11; accents multiply lead gain by 1 + accent / 6, with quiet
   chord voices. There is no VWAP drone or opening gong. Spike/drop hits remain.
-  `live-music.js` maps prepared features; `engine.playMapping()` schedules them.
+  `live-music.js` maps prepared features; `live-events.js` resolves the deployed
+  v3 score and `engine.playEvents()` schedules it. The legacy mapping path remains
+  available for v1/v2 replay. Public v3 bass notes above MIDI 54 transpose down an octave.
   Historical mapping retains its original presets and normalization. Preset changes
   preserve the feed, source analysis and five-second timeline.
 
 ### Bounded signal policy (`live-signal-v1`)
 
-Frames include `controls`; the existing v2 musical presets still map the mid-based
-features while the future composer consumes these controls. Historical mappings
+Frames include `controls`; the public event source maps mid-based musical features
+and uses energy/hits for explicit drums. Historical mappings
 and v1/v2 replay definitions retain their contracts.
 
 | Control | Integer range | Target and output boundary |
@@ -323,12 +357,13 @@ frames on preset replacement, Stop, or reconnect. A recorder must upsert by this
 ID, remove cancellations, and begin a new namespace per Start. Thus a replacement
 inside lookahead captures only the final audible preset, never both versions.
 
-Live `setPreset(id)` remaps future audio using each frame's original causal
+Legacy Live `setPreset(id)` remaps future audio using each frame's original causal
 references. It cancels/reschedules future lookahead voices at the same deadlines,
 without resetting history, the segment, buffer, or connection. Already-started
 frames/tails keep their preset; the next audible non-rest frame uses the new one.
 Selection survives reconnect and Stop/Start. `inspect().presetId` is the selected
-ID; `audible.mapping.presetId` is the audible one, which may still differ.
+ID; `audible.presetId` is the audible one, which may still differ. Deployed v3 Live
+changes only the next unscheduled group, preserving already queued attacks and tails.
 
 `inspect()` exposes active/state/reason, buffer duration, queue size, segment ID,
 newest received price/time, delayed cursor, delayed chart frames, audible frame,
@@ -389,7 +424,7 @@ pad gain to 0.72, recovering after 80 ms; energy ≥3 adds snare on alternate be
 Tone event hits reuse rack voices/noise. Native sine drones and historical Classic
 retain their original graph. Existing v1/v2 recordings retain their melodic
 mappings. V3 event scores retain explicit drums and kick-driven ducking; the
-deployed legacy Live mode still captures v2 mappings.
+deployed Live captures the explicit public v3 event score.
 
 Lookahead cancellation removes future automation without rebuilding the rack;
 internal seek, speed/preset switches and reconnects silence it without disposal.

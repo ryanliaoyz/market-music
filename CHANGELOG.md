@@ -2,6 +2,10 @@
 
 ## v3 — Unreleased
 
+- GRO-54: public Live-to-v3 rendering and a three-minute, memory-only event rewind.
+  Pause to select, preview, export WAV or share; Resume live reconnects without a
+  backlog. V3 accepts 180-second clips while retaining the 64 KiB hash cap; dense
+  selections report a shortening prompt. New Live scores retain no market data.
 - GRO-42: composer-free event-score replay and WAV, two-minute v3 captures with a
   64 KiB share-link cap, all-part public synthesis and percent-only replay charts.
   The next-beat boundary excludes pre-capture tails. V1/v2 links and deployed Live
