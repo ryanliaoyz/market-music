@@ -193,3 +193,36 @@ test("a failed resume is reported and Play can retry", async () => {
   assert.equal(playback.inspect().state, "playing");
   await playback.dispose();
 });
+
+test("a clip range bounds seeking, ends at its last minute, and replays from its start", async () => {
+  const { playback, advance, active } = setup();
+  assert.deepEqual(playback.inspect().range, { from: 0, to: 389 });
+  assert.throws(() => playback.setRange(10, 10), /Invalid clip range/);
+  assert.throws(() => playback.setRange(-1, 10), /Invalid clip range/);
+  assert.throws(() => playback.setRange(0, 390), /Invalid clip range/);
+  playback.setRange(5, 8);
+  assert.equal(playback.inspect().minute, 5);
+  playback.seek(200);
+  assert.equal(playback.inspect().minute, 8);
+  playback.seek(0);
+  assert.equal(playback.inspect().minute, 5);
+  playback.setSpeed(1);
+  await playback.play();
+  assert.equal(playback.inspect().audio.lastScheduled.minute, 5);
+  // Four minutes at 1x are two seconds from the 10.03 s origin.
+  advance(12.02);
+  assert.equal(playback.inspect().state, "playing");
+  advance(12.04);
+  assert.equal(playback.inspect().state, "ended");
+  assert.equal(playback.inspect().position, 9);
+  assert.equal(active(), false);
+  playback.setSpeed(2);
+  assert.equal(playback.inspect().state, "ended");
+  assert.equal(playback.inspect().position, 9);
+  await playback.play();
+  assert.equal(playback.inspect().minute, 5);
+  playback.setRange(0, 389);
+  assert.equal(playback.inspect().state, "playing");
+  assert.equal(playback.inspect().minute, 5);
+  await playback.dispose();
+});

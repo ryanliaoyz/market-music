@@ -19,7 +19,7 @@ test("touch layout, first-tap audio, and foreground-only historical playback", a
     };
   });
   await page.setViewportSize({ width: 320, height: 640 });
-  await page.goto("/");
+  await page.goto("/?debug");
   await page.locator("#play").tap();
   await expect.poll(async () => (await inspect(page)).playback.audio?.contextState).toBe("running");
   await page.locator("#debug summary").tap();
@@ -60,7 +60,7 @@ test("hiding live closes the socket, finishes capture and requires a fresh Start
     });
   });
   await page.goto("/");
-  await page.locator("#mode").selectOption("live");
+  await page.getByRole("tab", { name: "Live BTC" }).tap();
   await page.locator("#play").tap();
   await expect(page.locator("#record")).toBeEnabled({ timeout: 10000 });
   await page.locator("#record").tap();

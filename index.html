@@ -18,23 +18,26 @@
   </header>
   <main>
     <div class="source-controls">
-      <div><label for="mode">Mode</label>
-        <select id="mode"><option value="historical">Historical</option><option value="live">Live crypto · BTC-USD</option><option value="recording" disabled>Shared recording</option></select>
-      </div>
-      <div id="historical-source">
-        <label for="day">Trading day</label>
-        <select id="day" aria-describedby="status" disabled></select>
+      <div class="mode-tabs" id="mode" role="tablist" aria-label="Mode">
+        <button type="button" role="tab" id="tab-historical" data-mode="historical" aria-selected="true" aria-controls="controls">Replay a day</button>
+        <button type="button" role="tab" id="tab-live" data-mode="live" aria-selected="false" aria-controls="controls" tabindex="-1">Live BTC</button>
+        <button type="button" role="tab" id="tab-recording" data-mode="recording" aria-selected="false" aria-controls="controls" tabindex="-1" hidden>Shared clip</button>
       </div>
       <p id="live-product" hidden><span class="live-dot" aria-hidden="true"></span>BTC-USD <span>Coinbase · 5 s delayed</span></p>
       <p id="replay-product" hidden>shared clip · unverified</p>
     </div>
+    <fieldset id="historical-source" disabled>
+      <legend><span>Trading day</span><span class="day-scroll" aria-hidden="true"><button type="button" id="days-back" tabindex="-1">‹</button><button type="button" id="days-forward" tabindex="-1">›</button></span></legend>
+      <div id="day-cards" class="day-cards"></div>
+    </fieldset>
     <section class="listening-space" aria-label="Listening stage">
       <div class="listening-copy">
         <p class="eyebrow">A different way to feel the market</p>
         <h2>Every move.<br><span>A little music.</span></h2>
       </div>
       <figure id="chart" hidden>
-        <svg viewBox="0 0 780 310" role="img" aria-labelledby="chart-title chart-description">
+        <div class="chart-scale"><span>High <span data-visual="high"></span></span><span>Low <span data-visual="low"></span></span></div>
+        <svg viewBox="52 16 706 256" role="img" aria-labelledby="chart-title chart-description">
           <title id="chart-title">Session close price</title>
           <desc id="chart-description" data-visual="description">Price revealed with playback.</desc>
           <defs>
@@ -45,14 +48,8 @@
           <path data-visual="line" clip-path="url(#price-reveal)" fill="none" stroke="#c9e4ff" stroke-width="2" />
           <line data-visual="cursor" y1="24" y2="264" stroke="#bbc4d4" stroke-dasharray="4 4" />
           <circle data-visual="point" r="4" fill="#fff" />
-          <g class="chart-labels">
-            <text data-visual="high" x="8" y="18"></text>
-            <text data-visual="low" x="8" y="264"></text>
-            <text x="60" y="292">09:30</text>
-            <text x="405" y="292" text-anchor="middle">12:45</text>
-            <text x="750" y="292" text-anchor="end">16:00</text>
-          </g>
         </svg>
+        <div class="chart-axis" aria-hidden="true"><span>09:30</span><span>12:45</span><span>16:00</span></div>
         <figcaption>Close price · New York time · USD</figcaption>
       </figure>
     </section>
@@ -62,9 +59,10 @@
         <button id="play" type="button" aria-label="Start" aria-pressed="false">Start</button>
         <button id="pause-live" type="button" hidden disabled>Pause</button>
         <p id="status" role="status">Loading…</p>
+        <p id="hearing">Higher price → higher pitch · heavier trading → louder · bigger swings → grittier.</p>
       </div>
       <fieldset id="preset"><legend>Choose your sound</legend><div id="preset-cards"></div></fieldset>
-      <label for="volume">Volume</label>
+      <label for="volume" class="volume-label">Volume</label>
       <input id="volume" type="range" min="0" max="100" step="1" value="100">
       <div class="historical-tools">
         <div class="speed-control" id="historical-speed">
@@ -87,6 +85,14 @@
       </div>
     </fieldset>
     <section id="recording-controls" hidden aria-label="Recording">
+      <div id="clip-controls" hidden>
+        <p class="clip-heading">Share or save a clip</p>
+        <label for="clip-start">Clip start (New York)</label>
+        <input id="clip-start" type="range" min="0" max="389" step="1" value="0" aria-valuetext="09:30">
+        <label for="clip-end">Clip end (New York)</label>
+        <input id="clip-end" type="range" min="0" max="389" step="1" value="389" aria-valuetext="16:00">
+        <output id="clip-selection" aria-live="off"></output>
+      </div>
       <div id="rewind-controls" hidden>
         <label for="rewind-start">Start · rewind (seconds)</label>
         <input id="rewind-start" type="range" min="0" max="0" step="500" value="0">
@@ -100,7 +106,8 @@
       <output id="recording-status" aria-live="off"></output>
       <button id="download-wav" type="button" disabled>Download WAV</button>
       <button id="share-recording" type="button" disabled>Copy link</button>
-      <input id="recording-link" aria-label="Recording link" readonly hidden>
+      <output id="share-feedback" role="status"></output>
+      <input id="recording-link" aria-label="Share link" readonly hidden>
       <p id="recording-error" role="status"></p>
     </section>
     <details id="debug" hidden>

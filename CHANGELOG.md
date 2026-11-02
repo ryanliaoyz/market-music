@@ -2,6 +2,13 @@
 
 ## v3 — Unreleased
 
+- UI refresh: **Replay a day** / **Live BTC** tabs replace the mode dropdown; day cards
+  with one line of context (no outcome spoilers) replace the day dropdown. Past days can
+  be shared as a link or saved as WAV for a chosen clip range, and links open with that
+  range. Debug is hidden unless the URL has `?debug`. Live errors show a single **Retry**
+  button, copied links confirm with "Link copied ✓" (share sheet on phones), WAV files
+  are named by session or time, and all text is at least 12 px, including chart labels.
+
 - GRO-54: public Live-to-v3 rendering and a three-minute, memory-only event rewind.
   Pause to select, preview, export WAV or share; Resume live reconnects without a
   backlog. V3 accepts 180-second clips while retaining the 64 KiB hash cap; dense
