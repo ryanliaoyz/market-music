@@ -19,8 +19,8 @@ the **Debug panel** diagnostics;
 **Sources & credits** opens data attribution.
 
 **Live crypto** streams BTC-USD directly from Coinbase's keyless public WebSocket.
-Start subscribes and buffers five seconds, then plays 500 ms musical frames on a
-timeline five seconds behind browser receipt time. A rolling 60-second chart follows
+Start subscribes and buffers three seconds, then plays 500 ms musical frames on a
+timeline three seconds behind browser receipt time. A rolling 60-second chart follows
 that delayed timeline. Stop unsubscribes and silences audio; network drops reconnect
 and refill the buffer. The site remains entirely static on Vercel.
 Live intervals can be recorded in memory, downloaded as synthesized WAV, or shared
@@ -86,7 +86,7 @@ All audio passes through a shared compressor, approximately 14 kHz lowpass and
 ### Live crypto
 
 Select the **Live BTC** tab, then **Start**. The connection opens only on Start;
-audio starts after the first price and a five-second **Buffering** period. The
+audio starts after the first price and a short **Buffering** period (three seconds; the UI does not show the length). The
 stream remains connected throughout playback, including quiet intervals. **Stop**
 unsubscribes and clears the session, including rewind history. **Pause** also disconnects,
 but freezes the last three minutes of musical events for selection and export.
@@ -105,7 +105,7 @@ bounded trade accents; there is no VWAP drone or opening gong. Live uses the tic
 bid/ask mid and carries the last mid through quiet beats. Every received quote
 contributes to beat statistics; trades retain exchange-time sixteenth placement.
 Frames finalize as they enter the scheduler, accepting delayed trade batches until
-then without changing the five-second deadline. Debug exposes bounded signal
+then without changing the three-second deadline. Debug exposes bounded signal
 controls, their smoothing/latches, quote age and late-trade counts alongside the
 current musical mapping. See the [live contracts](SPEC.md#live-crypto-contracts).
 
@@ -138,11 +138,15 @@ speed, then plays only that range. The address is cleared after the link is appl
 export renders the range at the chosen speed and is limited to four minutes of audio.
 On phones, sharing opens the system share sheet; elsewhere the link is copied.
 
-**Rewind:** press **Pause**, scrub the **Start** and **End** sliders, then **Preview**
-the selection, **Download WAV**, or **Copy link**. Only the last three minutes of
-played events are retained, in page memory. Pausing freezes that window; notes that
+**Rewind:** press **Pause**. The price chart switches to the retained history (up to
+three minutes) with the last 30 seconds selected. Drag across the chart to choose another
+clip, or drag its handles; the handles are also keyboard sliders (arrows move 0.5 s,
+Shift+arrows 5 s). **Preview**, **Download WAV**, **Copy link** and **Resume live** sit
+directly under the chart while paused. Only the last three minutes of
+played events are retained, in page memory; prices are kept only to draw the chart and
+never enter links or WAVs. Pausing freezes that window; notes that
 started before the selection are excluded, and playback cuts at its end. **Resume live**
-stops preview and reconnects with a fresh five-second buffer, never replaying a backlog.
+stops preview and reconnects with a fresh three-second buffer, never replaying a backlog.
 Stop, switching modes or reloading clears rewind. Background interruptions require a tap.
 
 V3 links support 180 seconds and a 64 KiB hash cap. Dense selections may need shortening
@@ -185,7 +189,7 @@ prices on the main chart.
 
 - On iOS Safari and Android Chrome, check portrait/landscape controls, first-tap
   sound, lock/unlock, and switching apps during playback and recording. Returning
-  must stay silent until Start; Live must refill its five-second buffer.
+  must stay silent until Start; Live must refill its three-second buffer.
 - Install from the browser's home-screen/install menu on HTTPS. After one online
   visit and closing/reopening the app, try an offline launch and shared recording
   link. Verify safe-area spacing and first-tap sound in standalone mode too.
@@ -207,7 +211,7 @@ prices on the main chart.
 - With Debug open, seek paused, inspect a rest, replay the opening gong, and switch
   days. Previews must be labeled, rest values cleared, and old values hidden while
   loading.
-- Try Live on the deployed HTTPS URL: Start, observe five seconds of buffering,
+- Try Live on the deployed HTTPS URL: Start, observe about three seconds of buffering,
   then listen and compare the delayed chart with Debug. Stop during buffering and
   playback; verify immediate silence, mode switching, and a fresh buffer on Start.
 - Audition quiet and busy Live periods across all four presets: small price changes
@@ -215,7 +219,7 @@ prices on the main chart.
   busy/larger trades should increase rhythmic activity/accents. Compare the distinct
   pulse, pad, arpeggio and bass textures rather than just oscillator tone.
 - Temporarily interrupt the network: audio must stop, reconnect visibly, and refill
-   five seconds from the first fresh price. Backgrounding stops Live; return and
+   three seconds from the first fresh price. Backgrounding stops Live; return and
    tap Start to reconnect without a catch-up burst. Check Coinbase reachability and audible quality on
   speakers/headphones; these require a real feed/browser check.
 - Record while switching presets, stop capture, download WAV, and open the copied
@@ -358,7 +362,7 @@ shell assets, bump the cache version in `sw.js` and keep its explicit list compl
 - Historical playback supports bundled recent sessions, not licensed minute data
   for the 1987, 2008, or 2010 flash-crash examples.
 - Live prices are sampled ticker updates, not a complete trade history. They use
-  browser receipt timing with a fixed five-second delay on a 500 ms frame grid;
+  browser receipt timing with a fixed three-second delay on a 500 ms frame grid;
   network/exchange latency is additional. No historical backfill is requested.
   Empty live intervals carry the last mid; geographic/network restrictions can make
   Coinbase unavailable. Trades arriving after frame finalization are counted and

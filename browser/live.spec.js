@@ -45,7 +45,15 @@ async function setup(page, { catalogFailure = false, clock = true } = {}) {
       const step = Math.min(ms, 1000); await page.clock.runFor(step); ms -= step;
     }
   };
-  return { sockets, subscriptions, errors, closed, start, send, advance };
+  // Once audio plays, keep the real audio clock in step with the fake page clock so
+  // scheduled voices release as they would in a browser.
+  const play = async ms => {
+    while (ms > 0) {
+      sockets.at(-1).send(heartbeat);
+      const step = Math.min(ms, 500); await page.clock.runFor(step); await page.waitForTimeout(step); ms -= step;
+    }
+  };
+  return { sockets, subscriptions, errors, closed, start, send, advance, play };
 }
 
 test("Start subscribes, buffers five seconds, and renders only delayed prices; Stop unsubscribes", async ({ page }) => {
@@ -62,11 +70,11 @@ test("Start subscribes, buffers five seconds, and renders only delayed prices; S
   await expect(page.getByRole("slider", { name: "Session time (New York)" })).toBeHidden();
   mock.send(0, 100); await expect(page.locator("#status")).toContainText("Buffering");
   await mock.advance(1000); mock.send(1, 110);
-  await mock.advance(3900);
+  await mock.advance(1900);
   expect((await inspect(page)).visuals.close).toBeNull();
   await expect(page.locator("#status")).toContainText("Buffering");
   await mock.advance(100);
-  await expect(page.locator("#status")).toContainText("5 s delayed");
+  await expect(page.locator("#status")).toContainText("Playing · BTC-USD");
   await page.getByLabel("Volume", { exact: true }).fill("20");
   expect((await inspect(page)).playback.audio.bus.volume).toBe(0.2);
   expect((await inspect(page)).visuals.close).toBe(100);
@@ -98,7 +106,7 @@ test("real Web Audio and the debug/chart mapping follow the delayed frame", asyn
   const state = await inspect(page);
   expect(state.playback.audio.contextState).toBe("running");
   expect(state.playback.audio.lastScheduled.renderer).toBe("rack-v3");
-  expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(5000);
+  expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(3000);
   expect(state.debug.frameId).toBe(state.visuals.frameId);
   expect(state.debug.note).toBe(state.playback.audible.events.find(event => event.note !== undefined).note);
   await page.getByRole("button", { name: "Stop", exact: true }).click();
@@ -121,7 +129,7 @@ test("live Tone selection changes the next audible frame while buffered prices r
   },
     { intervals: [25], timeout: 8000 }).toBe("bass-heavy-v3");
   expect(state.debug.presetId).toBe("bass-heavy-v3");
-  expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(5000);
+  expect(state.playback.audible.playbackOffsetMs - state.playback.audible.sessionOffsetMs).toBe(3000);
   expect(mock.sockets).toHaveLength(1);
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   expect((await inspect(page)).playback.audio.activeToneFrames).toBe(0);
@@ -131,7 +139,7 @@ test("live Tone selection changes the next audible frame while buffered prices r
 test("network drops reconnect and refill; quiet markets keep the socket open", async ({ page }) => {
   const mock = await setup(page); await mock.start();
   mock.send(0, 100); await expect(page.locator("#status")).toContainText("Buffering");
-  await mock.advance(6000);
+  await mock.advance(3000); await mock.play(3000);
   expect(mock.sockets).toHaveLength(1); expect(mock.closed).toHaveLength(0);
   mock.sockets[0].close({ code: 1011, reason: "network drop" });
   await expect(page.locator("#status")).toContainText("Reconnecting");
@@ -139,7 +147,7 @@ test("network drops reconnect and refill; quiet markets keep the socket open", a
   await expect.poll(() => mock.sockets.length).toBe(2);
   await expect.poll(() => mock.subscriptions.length).toBe(6);
   mock.send(0, 200); await expect(page.locator("#status")).toContainText("Buffering");
-  await mock.advance(4900); expect((await inspect(page)).visuals.close).toBeNull();
+  await mock.advance(2900); expect((await inspect(page)).visuals.close).toBeNull();
   await mock.advance(100); expect((await inspect(page)).visuals.close).toBe(200);
   expect((await inspect(page)).playback.latest.return).toBeNull();
   await page.getByRole("button", { name: "Stop", exact: true }).click();
@@ -159,7 +167,7 @@ test("subscription error offers Retry, which recovers despite catalog failure", 
   await expect.poll(() => mock.sockets.length).toBe(sockets + 1);
   mock.send(0, 200);
   await expect(page.locator("#status")).toContainText("Buffering");
-  await mock.advance(5000); expect((await inspect(page)).visuals.close).toBe(200);
+  await mock.advance(3000); expect((await inspect(page)).visuals.close).toBe(200);
   expect((await inspect(page)).error).toBeNull();
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   expect(mock.errors).toEqual([]);

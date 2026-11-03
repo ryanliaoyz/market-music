@@ -6,7 +6,8 @@ import { createBeatAggregator } from "./live-aggregate.js";
 import { EVENT_KITS, RENDERER, normalizeEvents, validateEventScore } from "./event-score.js";
 import { createRewindBuffer } from "./rewind-buffer.js";
 
-export const DELAY_MS = 5000;
+// Long enough for late trade batches and network jitter; short enough to feel live.
+export const DELAY_MS = 3000;
 const RETAINED_FRAMES = WINDOW_FRAMES + DELAY_MS / FRAME_MS + 2;
 
 export function createLivePlayback({ context, onChange = () => {}, onTick = () => {}, onFrame = () => {},
@@ -39,7 +40,7 @@ export function createLivePlayback({ context, onChange = () => {}, onTick = () =
       delayedCursorMs: cursor === null || cursor < 0 ? null : origin - sessionStart + cursor,
       newestReceived: structuredClone(newestReceived), frames: structuredClone(visible),
       latest: structuredClone(visible.at(-1) ?? null), audible: structuredClone(audible),
-      waiting: !active || audioError ? null : !audioReady ? "audio-context-resume" : origin === null ? "first-price" : cursor < 0 ? "five-second-buffer" : null,
+      waiting: !active || audioError ? null : !audioReady ? "audio-context-resume" : origin === null ? "first-price" : cursor < 0 ? "buffer" : null,
       signal: features.inspectSignal(), aggregate: aggregate?.inspect() ?? null, composer: composer.inspect(),
        rewind: rewind.inspect(), audio: engine?.inspect() ?? null };
   }

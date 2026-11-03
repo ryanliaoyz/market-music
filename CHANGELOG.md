@@ -2,6 +2,11 @@
 
 ## v3 — Unreleased
 
+- Live rewind: pausing turns the price chart into the clip selector (drag or keyboard
+  handles, last 30 s preselected) with Preview, Download WAV, Copy link and Resume live
+  directly underneath; the separate slider panel is gone. The Live delay is now three
+  seconds and is no longer shown in the UI.
+
 - UI refresh: **Replay a day** / **Live BTC** tabs replace the mode dropdown; day cards
   with one line of context (no outcome spoilers) replace the day dropdown. Past days can
   be shared as a link or saved as WAV for a chosen clip range, and links open with that

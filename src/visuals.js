@@ -28,6 +28,7 @@ export function createLiveVisuals(svg) {
       node("high").textContent = label(high);
       node("low").textContent = label(low);
       node("reveal").setAttribute("width", WIDTH);
+      node("cursor").setAttribute("visibility", "visible");
       node("cursor").setAttribute("x1", LEFT + WIDTH);
       node("cursor").setAttribute("x2", LEFT + WIDTH);
       const latest = snapshot.latest;

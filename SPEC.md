@@ -117,7 +117,7 @@ Start selections use the 500 ms grid; end selections use integer milliseconds, i
 the partial paused beat. Earlier attacks/tails are excluded and exports cut at the end.
 
 Resume stops preview, invalidates pending preview unlocks and reconnects/refills the
-five-second Live delay. History appends on the next beat grid, excluding paused/refill
+three-second Live delay. History appends on the next beat grid, excluding paused/refill
 time; a partial last beat can leave less than 500 ms of padding. Stop, mode change and
 reload clear history. Backgrounding stops preview and freezes Live; returning needs
 a gesture. Debug/`marketMusic.inspect().rewind` exposes range, counts, selection,
@@ -181,7 +181,7 @@ is inspectable in the existing Debug panel and `window.marketMusic.inspect()`.
 pauses historical playback and stops live/shared replay. Live Stop closes the
 socket, cancels retries/watchdogs, clears the delayed segment and finishes capture.
 Returning never auto-starts; the next Start gesture resumes historical at its
-minute, restarts replay, or reconnects live with a fresh five-second buffer.
+minute, restarts replay, or reconnects live with a fresh three-second buffer.
 Pending audio-start completions cannot undo Stop/Pause. Browser audio suspension
 detected by playback snapshots follows the same interruption path. Audio contexts
 are created lazily and resumed in the gesture path; a non-running resume is an error.
@@ -224,7 +224,7 @@ retain their separate contracts below.
   and carries its last mid. Reconnect uses jittered exponential backoff up to 30 seconds,
   resetting after 30 healthy seconds. Obsolete callbacks cannot emit data.
 - A network drop silences audio and clears the delayed segment. Reconnection
-  resubscribes, then buffers five seconds from its first fresh tick. Missing data
+  resubscribes, then buffers three seconds from its first fresh tick. Missing data
   is never backfilled. Coinbase is the only shipped provider; Kraken is contingency
   only, as described in the README.
 
@@ -287,7 +287,7 @@ retain their separate contracts below.
   v3 score and `engine.playEvents()` schedules it. The legacy mapping path remains
   available for v1/v2 replay. Public v3 bass notes above MIDI 54 transpose down an octave.
   Historical mapping retains its original presets and normalization. Preset changes
-  preserve the feed, source analysis and five-second timeline.
+  preserve the feed, source analysis and three-second timeline.
 
 ### Bounded signal policy (`live-signal-v1`)
 
@@ -530,6 +530,14 @@ without its own timer/event queue or the sound engine's lookahead mapping.
 - Loading hides the old chart; each session rebuilds scale/path.
   `window.marketMusic.inspect().visuals` exposes rendered position, minute, close
   (null for rests), intensity, event, flash strength, and waiting/transition reason.
+
+### Paused Live clip selector
+
+`src/rewind-view.js` draws `rewind.trace()` (heard beats with display-only prices) on the
+live chart while paused and overlays a selection band with two `role="slider"` handles.
+`defaultSelection` picks the last 30 s; `clampSelection` keeps starts on the 500 ms grid,
+at least 500 ms long, inside the frozen range, snapping ends within 250 ms of the pause
+point to it. `rewind.clip()` exports only offsets, presets and events.
 
 ### Mode tabs, day cards and day links
 
