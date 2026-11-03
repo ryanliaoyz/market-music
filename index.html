@@ -23,7 +23,7 @@
         <button type="button" role="tab" id="tab-live" data-mode="live" aria-selected="false" aria-controls="controls" tabindex="-1">Live BTC</button>
         <button type="button" role="tab" id="tab-recording" data-mode="recording" aria-selected="false" aria-controls="controls" tabindex="-1" hidden>Shared clip</button>
       </div>
-      <p id="live-product" hidden><span class="live-dot" aria-hidden="true"></span>BTC-USD <span>Coinbase · 5 s delayed</span></p>
+      <p id="live-product" hidden><span class="live-dot" aria-hidden="true"></span>BTC-USD <span>Coinbase</span></p>
       <p id="replay-product" hidden>shared clip · unverified</p>
     </div>
     <fieldset id="historical-source" disabled>
@@ -49,6 +49,11 @@
           <line data-visual="cursor" y1="24" y2="264" stroke="#bbc4d4" stroke-dasharray="4 4" />
           <circle data-visual="point" r="4" fill="#fff" />
         </svg>
+        <div class="rewind-select" hidden>
+          <div class="rewind-band" hidden></div>
+          <div class="rewind-handle" id="rewind-start" role="slider" tabindex="0" aria-label="Clip start" aria-orientation="horizontal" hidden></div>
+          <div class="rewind-handle" id="rewind-end" role="slider" tabindex="0" aria-label="Clip end" aria-orientation="horizontal" hidden></div>
+        </div>
         <div class="chart-axis" aria-hidden="true"><span>09:30</span><span>12:45</span><span>16:00</span></div>
         <figcaption>Close price · New York time · USD</figcaption>
       </figure>
@@ -94,10 +99,6 @@
         <output id="clip-selection" aria-live="off"></output>
       </div>
       <div id="rewind-controls" hidden>
-        <label for="rewind-start">Start · rewind (seconds)</label>
-        <input id="rewind-start" type="range" min="0" max="0" step="500" value="0">
-        <label for="rewind-end">End (seconds)</label>
-        <input id="rewind-end" type="range" min="0" max="0" step="1" value="0">
         <output id="rewind-selection" aria-live="off"></output>
         <button id="preview-rewind" type="button" disabled>Preview</button>
         <button id="resume-live" type="button">Resume live</button>

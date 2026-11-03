@@ -33,7 +33,9 @@ export function createRewindBuffer() {
     schedule(frame) {
       if (origin === null) { base = Math.ceil(end / 500) * 500; origin = frame.when; frozen = false; }
       const offsetMs = base + Math.round((frame.when - origin) * 1000 / 500) * 500;
-      groups.set(`${epoch}:${frame.scheduleId}`, { offsetMs, presetId: frame.presetId, change: 0, events: structuredClone(frame.events) });
+      // Price is kept for the on-page chart only; clip() never exports it.
+      const price = Number.isFinite(frame.price) ? frame.price : null;
+      groups.set(`${epoch}:${frame.scheduleId}`, { offsetMs, presetId: frame.presetId, change: 0, events: structuredClone(frame.events), price });
       reason = "scheduled";
     },
     cancel(id) { groups.delete(`${epoch}:${id}`); reason = "schedule-cancelled"; },
@@ -42,9 +44,14 @@ export function createRewindBuffer() {
       if (!Number.isInteger(startMs) || startMs % 500 || startMs < lower || !Number.isInteger(endMs) || endMs > end || endMs <= startMs)
         throw new RangeError("Select a nonempty interval inside the rewind buffer");
       const frames = [...groups.values()].filter(group => group.offsetMs >= startMs && group.offsetMs < endMs)
-        .sort((a, b) => a.offsetMs - b.offsetMs).map(group => ({ ...structuredClone(group), offsetMs: group.offsetMs - startMs,
+        .sort((a, b) => a.offsetMs - b.offsetMs).map(group => ({ offsetMs: group.offsetMs - startMs, presetId: group.presetId, change: group.change,
           events: structuredClone(group.events.filter(event => group.offsetMs + event.offset * 1000 < endMs)) }));
       return frames.length ? { version: 3, renderer: RENDERER, durationMs: endMs - startMs, frames } : null;
+    },
+    // Heard beats with their display price, oldest first, for the paused chart.
+    trace() {
+      return [...groups.values()].filter(group => group.offsetMs >= lower && group.offsetMs < end)
+        .sort((a, b) => a.offsetMs - b.offsetMs).map(group => ({ offsetMs: group.offsetMs, price: group.price }));
     },
   };
 }

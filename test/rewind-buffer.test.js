@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRewindBuffer } from "../src/rewind-buffer.js";
+import { defaultSelection, clampSelection } from "../src/rewind-view.js";
 import { createLiveEventSource, LIVE_EVENT_PRESETS } from "../src/live-events.js";
 import { validateEventScore } from "../src/event-score.js";
 import { encodeRecording, decodeRecording } from "../src/recording-codec.js";
-import { createLivePlayback } from "../src/live-playback.js";
+import { createLivePlayback, DELAY_MS } from "../src/live-playback.js";
 import { createSoundEngine } from "../src/sound.js";
 import { AudioContext } from "./helpers/audio.js";
 import { fakeTone } from "./helpers/tone.js";
@@ -92,14 +93,14 @@ test("live pause cuts future attacks and resume refills before appending the res
     now: () => time, setInterval: fn => { tick = fn; return 1; }, clearInterval() {} });
   const advance = until => { while (time < until) { time += 25; context.currentTime = 10 + time / 1000; tick(); } };
   const accept = () => player.accept({ price: 100, mid: 100, spread: 0, connectionId: 1, exchangeTimeMs: 0 });
-  await player.start(); accept(); advance(5200); player.pause();
+  await player.start(); accept(); advance(DELAY_MS + 200); player.pause();
   assert.equal(player.inspect().state, "paused");
   assert.deepEqual(player.rewind.clip().frames[0].events, [note]);
   const end = player.rewind.inspect().endMs;
   advance(15000); assert.equal(player.rewind.inspect().endMs, end);
   await player.start({ retainHistory: true }); accept();
-  advance(19900); assert.equal(player.rewind.inspect().endMs, end);
-  advance(20700); player.pause();
+  advance(15000 + DELAY_MS - 100); assert.equal(player.rewind.inspect().endMs, end);
+  advance(15000 + DELAY_MS + 700); player.pause();
   assert.ok(player.rewind.inspect().endMs > end);
   assert.equal(player.rewind.clip().frames[0].events[0].note, 60);
   player.stop(); assert.equal(player.rewind.inspect().groups, 0);
@@ -115,4 +116,23 @@ test("the renderer reports only accepted attacks so skipped late notes cannot en
   assert.deepEqual(rendered.events, [future]);
   assert.deepEqual(engine.inspect().rack.last.events, [future]);
   await engine.dispose();
+});
+
+test("the paused chart trace keeps prices locally while clips stay price-free", () => {
+  const buffer = createRewindBuffer();
+  for (let slot = 0; slot < 4; slot++) buffer.schedule({ ...group(slot), price: 100 + slot });
+  buffer.boundary(12, "pause");
+  assert.deepEqual(buffer.trace(), [0, 500, 1000, 1500].map((offsetMs, slot) => ({ offsetMs, price: 100 + slot })));
+  assert.doesNotMatch(JSON.stringify(buffer.clip()), /price/);
+});
+
+test("chart selections default to the last 30 seconds and stay on the beat grid inside the range", () => {
+  assert.deepEqual(defaultSelection({ startMs: 0, endMs: 120000 }), { startMs: 90000, endMs: 120000 });
+  assert.deepEqual(defaultSelection({ startMs: 0, endMs: 12340 }), { startMs: 0, endMs: 12340 });
+  assert.equal(defaultSelection({ startMs: 0, endMs: 400 }), null);
+  const range = { startMs: 1000, endMs: 12340 };
+  assert.deepEqual(clampSelection({ startMs: 0, endMs: 99999 }, range), { startMs: 1000, endMs: 12340 });
+  assert.deepEqual(clampSelection({ startMs: 4321, endMs: 4400 }, range), { startMs: 4000, endMs: 4500 });
+  assert.deepEqual(clampSelection({ startMs: 5000, endMs: 12200 }, range), { startMs: 5000, endMs: 12340 });
+  assert.deepEqual(clampSelection({ startMs: 12300, endMs: 12340 }, range), { startMs: 11500, endMs: 12340 });
 });

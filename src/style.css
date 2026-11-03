@@ -126,7 +126,20 @@ input[type="range"] { display: block; width: 100%; min-height: 44px; margin: 0; 
   filter: blur(45px); transform: translateY(calc(var(--note-position) * -1px));
   transition: background 450ms, transform 450ms;
 }
-#chart { min-width: 0; margin: 1rem 0 0; }
+#chart { position: relative; min-width: 0; margin: 1rem 0 0; }
+/* Paused Live: the chart itself is the clip selector. */
+.rewind-select { position: absolute; z-index: 1; pointer-events: auto; touch-action: pan-y; cursor: crosshair; }
+.rewind-band { position: absolute; top: 0; bottom: 0; background: #91e3cd26; border-inline: 1px solid #91e3cd99; border-radius: 4px; pointer-events: none; }
+.rewind-handle { position: absolute; top: 0; bottom: 0; width: 44px; transform: translateX(-50%); cursor: ew-resize; touch-action: none; }
+.rewind-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; transform: translateX(-50%); border-radius: 2px; background: #b4f0de; }
+.rewind-handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 14px; height: 28px; transform: translate(-50%, -50%); border-radius: 7px; background: #b4f0de; box-shadow: 0 0 10px #64d7b580; }
+.rewind-handle:focus-visible { outline: 3px solid #f5d58b; outline-offset: 0; border-radius: 8px; }
+/* The rewind group joins the action row so Resume live can sit last. */
+#rewind-controls:not([hidden]) { display: contents; }
+#rewind-selection { order: -1; width: 100%; text-align: center; }
+#resume-live { order: 1; }
+#share-feedback, #recording-link, #recording-error { order: 2; }
+.listening-space + #recording-controls { margin: 0 0 1.25rem; }
 #chart svg { display: block; width: 100%; overflow: visible; }
 [data-visual="background"] { opacity: 0.15; }
 [data-visual="line"] { stroke: #92e2c7; stroke-width: 1.5; filter: drop-shadow(0 0 7px #9ae8cf88); }
@@ -186,9 +199,3 @@ a { color: #9cdeca; text-underline-offset: 0.2em; }
   .event-flash { visibility: hidden; }
   *, *::before, *::after { transition: none !important; }
 }
-#rewind-controls:not([hidden]) {
-  display: grid;
-  gap: 0.65rem;
-  width: min(100%, 36rem);
-}
-#rewind-controls input { width: 100%; min-height: 44px; }

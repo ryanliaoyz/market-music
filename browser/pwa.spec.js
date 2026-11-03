@@ -21,7 +21,7 @@ test("manifest, icons and shell-only offline launch including shared replay", as
   await page.reload();
   expect(await page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
   const entries = await page.evaluate(async () => {
-    const cache = await caches.open("market-music-shell-v10");
+    const cache = await caches.open("market-music-shell-v11");
     return (await cache.keys()).map(request => new URL(request.url).pathname);
   });
   expect(entries).toContain("/src/main.js");
@@ -33,10 +33,11 @@ test("manifest, icons and shell-only offline launch including shared replay", as
   expect(entries).toContain("/src/live-events.js");
   expect(entries).toContain("/src/rewind-buffer.js");
   expect(entries).toContain("/src/day-link.js");
+  expect(entries).toContain("/src/rewind-view.js");
   expect(entries.some(path => path.startsWith("/data/"))).toBe(false);
   expect(await page.evaluate(async () => {
     await fetch("/data/sessions.json");
-    return (await (await caches.open("market-music-shell-v10")).keys()).length;
+    return (await (await caches.open("market-music-shell-v11")).keys()).length;
   })).toBe(entries.length);
   await context.setOffline(true);
   await page.reload();
@@ -56,7 +57,7 @@ test("manifest, icons and shell-only offline launch including shared replay", as
 
 test("new shell waits for old clients and activation removes only app-owned old caches", async ({ page, context }) => {
   const source = await readFile(new URL("../sw.js", import.meta.url), "utf8");
-  let worker = source.replace("}v10`", "}v9`");
+  let worker = source.replace("}v11`", "}v10`");
   const types = { js: "application/javascript", css: "text/css", html: "text/html", webmanifest: "application/manifest+json", png: "image/png" };
   const server = createServer(async (request, response) => {
     const path = new URL(request.url, "http://localhost").pathname;
@@ -90,8 +91,8 @@ test("new shell waits for old clients and activation removes only app-owned old 
     await expect.poll(() => replacement.evaluate(() =>
       !self.registration.waiting && self.registration.active?.state === "activated")).toBe(true);
     await next.goto(url);
-    await expect.poll(() => next.evaluate(() => caches.keys())).toEqual(expect.arrayContaining(["market-music-shell-v10", "unrelated-cache"]));
-    expect(await next.evaluate(() => caches.keys())).not.toContain("market-music-shell-v9");
+    await expect.poll(() => next.evaluate(() => caches.keys())).toEqual(expect.arrayContaining(["market-music-shell-v11", "unrelated-cache"]));
+    expect(await next.evaluate(() => caches.keys())).not.toContain("market-music-shell-v10");
     expect(await next.evaluate(() => caches.keys())).not.toContain("market-music-shell-obsolete");
   } finally {
     server.closeAllConnections();

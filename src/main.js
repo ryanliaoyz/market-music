@@ -14,6 +14,7 @@ import { encodeDayLink, decodeDayLink, isDayLink } from "./day-link.js";
 import { EVENT_PRESETS } from "./event-score.js";
 import { createLiveEventSource, LIVE_EVENT_PRESETS } from "./live-events.js";
 import { registerPwa } from "./pwa.js";
+import { createRewindView, defaultSelection } from "./rewind-view.js";
 
 const preset = document.getElementById("preset");
 const presetCards = document.getElementById("preset-cards");
@@ -159,8 +160,13 @@ const recorder = createRecorder();
 let sharedClip = null, exporting = false, encodedSize = 0;
 let preview = null, previewGeneration = 0, selectedClip = null, rewindWasPaused = false;
 const pauseLive = document.getElementById("pause-live");
-const rewindStart = document.getElementById("rewind-start");
-const rewindEnd = document.getElementById("rewind-end");
+const LIVE_AXIS = ["−60 s", "−30 s", "latest"];
+function setAxis(values) {
+  const labels = chart.querySelectorAll(".chart-axis span");
+  values.forEach((value, index) => { if (labels[index].textContent !== value) labels[index].textContent = value; });
+}
+const rewindView = createRewindView(chart, { onSelect: () => selectRewind() });
+addEventListener("resize", () => { if (rewindWasPaused) renderRecording(); });
 function stopPreview() {
   previewGeneration++;
   const previous = preview; preview = null;
@@ -170,29 +176,45 @@ function stopPreview() {
 function selectRewind() {
   stopPreview();
   document.getElementById("recording-link").hidden = true;
-  selectedClip = Number(rewindEnd.value) > Number(rewindStart.value)
-    ? playback.rewind.clip(Number(rewindStart.value), Number(rewindEnd.value)) : null;
+  const selection = rewindView.selection;
+  selectedClip = selection ? playback.rewind.clip(selection.startMs, selection.endMs) : null;
   recordingError.textContent = "";
   renderRecording();
 }
 function renderRewind(snapshot) {
   const paused = snapshot?.mode === "live" && snapshot.state === "paused";
-  pauseLive.hidden = snapshot?.mode !== "live";
+  pauseLive.hidden = snapshot?.mode !== "live" || paused;
   pauseLive.disabled = snapshot?.state !== "playing";
   document.getElementById("rewind-controls").hidden = !paused;
+  // While paused, the clip actions sit directly under the chart they act on.
+  const actions = document.getElementById("recording-controls");
+  if (paused && !rewindWasPaused) document.querySelector(".listening-space").after(actions);
+  if (!paused && rewindWasPaused) controls.after(actions);
   if (paused && !rewindWasPaused) {
-    const range = snapshot.rewind;
-    for (const input of [rewindStart, rewindEnd]) { input.min = range.startMs; input.max = range.endMs; }
-    rewindStart.value = range.startMs; rewindEnd.value = range.endMs;
-    selectedClip = range.durationMs > 0 ? playback.rewind.clip(range.startMs, range.endMs) : null;
+    // Pausing turns the price chart into the clip selector, starting with the last 30 seconds.
+    const initial = defaultSelection(snapshot.rewind);
+    rewindView.show(snapshot.rewind, initial);
+    chart.querySelector("figcaption").textContent = "Drag across the chart to choose a clip";
+    selectedClip = initial ? playback.rewind.clip(initial.startMs, initial.endMs) : null;
+  }
+  if (!paused && rewindWasPaused) {
+    rewindView.hide();
+    if (snapshot?.mode === "live") {
+      setAxis(LIVE_AXIS);
+      chart.querySelector("figcaption").textContent = "BTC-USD · last 60 seconds · USD";
+    }
   }
   rewindWasPaused = paused;
-  rewindStart.setAttribute("aria-valuetext", `${(Number(rewindStart.value) / 1000).toFixed(1)} seconds`);
-  rewindEnd.setAttribute("aria-valuetext", `${(Number(rewindEnd.value) / 1000).toFixed(1)} seconds`);
-  document.getElementById("rewind-selection").textContent = `${(Number(rewindStart.value) / 1000).toFixed(1)}–${(Number(rewindEnd.value) / 1000).toFixed(1)} s · ${((selectedClip?.durationMs ?? 0) / 1000).toFixed(1)} s selected`;
+  if (paused) {
+    const previewing = preview && ["playing", "starting"].includes(preview.inspect().state);
+    rewindView.render(playback.rewind.trace(), { previewMs: previewing ? preview.inspect().elapsedMs ?? 0 : null });
+  }
+  const text = selectedClip ? `${(selectedClip.durationMs / 1000).toFixed(1)} s selected` : "Nothing selected";
+  const output = document.getElementById("rewind-selection");
+  if (output.textContent !== text) output.textContent = text;
   document.getElementById("preview-rewind").disabled = !selectedClip;
   if (showDebug()) document.getElementById("rewind-debug").textContent = JSON.stringify({ ...snapshot?.rewind,
-    selection: selectedClip ? { startMs: Number(rewindStart.value), endMs: Number(rewindEnd.value) } : null,
+    selection: rewindView.selection,
     preview: preview?.inspect() ?? null, encodedSize }, null, 2);
 }
 const record = document.getElementById("record");
@@ -222,9 +244,11 @@ function renderRecording(snapshot = playback?.inspect()) {
   document.getElementById("recording-controls").hidden = historical && !playback && !recordingError.textContent;
   document.getElementById("clip-controls").hidden = !historical || !playback;
   if (historical) renderClip(snapshot?.range);
-  record.hidden = mode.value !== "live";
+  const pausedLive = mode.value === "live" && snapshot?.state === "paused";
+  record.hidden = mode.value !== "live" || pausedLive;
   record.disabled = !snapshot?.active || snapshot.state !== "playing" && !recording;
   record.textContent = recording ? "Stop recording" : "Record";
+  document.getElementById("recording-status").hidden = pausedLive;
   document.getElementById("recording-status").textContent = historical ? "" : mode.value === "recording" ? `${(sharedClip.durationMs / 1000).toFixed(1)} s clip` : `${info.state} · ${(info.durationMs / 1000).toFixed(1)} / ${info.limitMs / 1000} s`;
   download.disabled = !(historical ? dayClip() : currentClip()) || exporting;
   share.disabled = !(historical ? dayClip() : currentClip());
@@ -249,7 +273,8 @@ function render(snapshot) {
   }
   renderLifecycle();
   renderRecording(snapshot);
-  visuals?.render(snapshot);
+  // While Live is paused the chart belongs to the rewind selector.
+  if (!(snapshot.mode === "live" && snapshot.state === "paused")) visuals?.render(snapshot);
   const intensity = visuals?.inspect()?.intensity ?? 0;
   scene.style.setProperty("--scene-hue", String(175 - intensity * 140));
   scene.style.setProperty("--scene-energy", String(0.2 + intensity * 0.3));
@@ -272,9 +297,9 @@ function render(snapshot) {
   if (snapshot.mode === "live") {
     mode.disabled = snapshot.active;
     const messages = { stopped: "Live crypto ready. Press Start to subscribe.", starting: "Starting audio…",
-      waiting: "Waiting for the first BTC-USD price…", buffering: "Buffering · 5 seconds…",
-      playing: "Playing · 5 s delayed · BTC-USD · Coinbase", reconnecting: "Connection lost. Reconnecting to Coinbase…",
-      paused: "Paused · select a rewind interval or Resume live.", error: "Live unavailable. Press Retry." };
+      waiting: "Waiting for the first BTC-USD price…", buffering: "Buffering…",
+      playing: "Playing · BTC-USD · Coinbase", reconnecting: "Connection lost. Reconnecting to Coinbase…",
+      paused: "Paused", error: "Live unavailable. Press Retry." };
     if (!resumeNeeded) status.textContent = messages[snapshot.state] ?? snapshot.state;
     if (feed && showDebug()) feedDebug.textContent = JSON.stringify({ ...feed.inspect(), retainedFrames: snapshot.frames.length,
       policy: snapshot.policy, references: snapshot.latest?.references ?? null,
@@ -347,16 +372,17 @@ function configureMode(live, replay) {
   document.getElementById("debug-return-label").textContent = live ? "500 ms return" : "1-minute return";
   document.getElementById("debug-sigma-label").textContent = live ? "Trailing return σ" : "Day σ · population standard deviation";
   const labels = chart.querySelectorAll(".chart-axis span");
-  [labels[0].textContent, labels[1].textContent, labels[2].textContent] = live ? ["−65 s", "−35 s", "−5 s"] : ["09:30", "12:45", "16:00"];
-  chart.querySelector("figcaption").textContent = live ? "BTC-USD · 60-second window · 5 s delayed · UTC · USD" : "Close price · New York time · USD";
-  document.getElementById("chart-title").textContent = live ? "BTC-USD delayed price" : "Session close price";
+  [labels[0].textContent, labels[1].textContent, labels[2].textContent] = live ? LIVE_AXIS : ["09:30", "12:45", "16:00"];
+  chart.querySelector("figcaption").textContent = live ? "BTC-USD · last 60 seconds · USD" : "Close price · New York time · USD";
+  document.getElementById("chart-title").textContent = live ? "BTC-USD price" : "Session close price";
   hearing.textContent = replay ? "Replaying a shared clip exactly as it was recorded." : live
     ? "Price moves steer the melody · trading activity drives the rhythm."
     : "Higher price → higher pitch · heavier trading → louder · bigger swings → grittier.";
 }
 
 async function selectMode() {
-  stopPreview(); selectedClip = null; rewindWasPaused = false;
+  stopPreview(); selectedClip = null; rewindWasPaused = false; rewindView.hide();
+  controls.after(document.getElementById("recording-controls"));
   resumeNeeded = false; lifecycleReason = "mode change";
   const request = ++selection;
   feed?.stop(); feed = null; currentFeatures = null;
@@ -467,8 +493,6 @@ preset.addEventListener("change", () => {
   try { playback.setPreset(selectedPreset()); } catch (cause) { showError(cause); }
 });
 pauseLive.addEventListener("click", () => { feed.stop(); playback.pause(); });
-rewindStart.addEventListener("input", selectRewind);
-rewindEnd.addEventListener("input", selectRewind);
 document.getElementById("preview-rewind").addEventListener("click", async () => {
   if (preview) { stopPreview(); renderRecording(); return; }
   const request = ++previewGeneration;
